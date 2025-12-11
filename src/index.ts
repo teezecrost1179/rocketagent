@@ -65,6 +65,7 @@ app.get("/", (_req, res) => {
 });
 
 // Endpoint to trigger an outbound call
+// Endpoint to trigger an outbound call
 app.post("/call", async (req, res) => {
   try {
     const { phone, name } = req.body;
@@ -73,13 +74,15 @@ app.post("/call", async (req, res) => {
       return res.status(400).json({ error: "Missing or invalid phone number" });
     }
 
-    // Normalize phone into something like E.164
-    let toNumber = phone.trim();
-    if (!toNumber.startsWith("+")) {
-      // Assume North America if they forgot the +1
-      if (/^\d{10}$/.test(toNumber)) {
-        toNumber = "+1" + toNumber;
-      }
+    // Use the shared normalizer
+    const toNumber = normalizePhone(phone);
+
+    // Basic validation: must be E.164-ish, e.g. +12045551234
+    if (!toNumber.startsWith("+") || !/^\+\d{11,15}$/.test(toNumber)) {
+      console.warn("Invalid phone format after normalization:", phone, "→", toNumber);
+      return res
+        .status(400)
+        .json({ error: "Invalid phone number format. Please include area code." });
     }
 
     // Use Retell’s dash-style pauses instead of SSML
@@ -90,8 +93,6 @@ app.post("/call", async (req, res) => {
     const payload: any = {
       from_number: RETELL_FROM_NUMBER,
       to_number: toNumber,
-      // agent_id is optional if your Retell number is already bound to the agent;
-      // include it if you have it in env.
       ...(RETELL_AGENT_ID ? { agent_id: RETELL_AGENT_ID } : {}),
       retell_llm_dynamic_variables: {
         call_type: "outbound",
@@ -123,6 +124,7 @@ app.post("/call", async (req, res) => {
     return res.status(500).json({ error: "Failed to trigger call" });
   }
 });
+
 
 // Simple Rocket Agent web chat endpoint
 app.post("/chat", async (req, res) => {
