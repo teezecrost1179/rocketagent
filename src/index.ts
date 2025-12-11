@@ -24,13 +24,25 @@ app.post("/call", async (req, res) => {
       return res.status(400).json({ error: "Missing or invalid phone number" });
     }
 
-    // TODO: replace with Retell's real outbound-call API
+    // Normalize phone into something close to E.164
+    let toNumber = phone.trim();
+    if (!toNumber.startsWith("+")) {
+      // Assume North America if they forgot the +1
+      if (/^\d{10}$/.test(toNumber)) {
+        toNumber = "+1" + toNumber;
+      }
+    }
+
+    const payload = {
+      from_number: RETELL_FROM_NUMBER,
+      to_number: toNumber
+    };
+
+    console.log("Creating Retell phone call with payload:", payload);
+
     const response = await axios.post(
       "https://api.retellai.com/v2/create-phone-call",
-      {
-        agent_id: RETELL_AGENT_ID,
-        to: phone
-      },
+      payload,
       {
         headers: {
           Authorization: `Bearer ${RETELL_API_KEY}`,
@@ -39,10 +51,15 @@ app.post("/call", async (req, res) => {
       }
     );
 
-    res.json({ success: true, data: response.data });
+    return res.json({ success: true, data: response.data });
   } catch (err: any) {
-    console.error("Error triggering call:", err?.response?.data || err.message);
-    res.status(500).json({ error: "Failed to trigger call" });
+    console.error(
+      "Error triggering Retell call:",
+      err?.response?.status,
+      err?.response?.statusText,
+      err?.response?.data || err.message
+    );
+    return res.status(500).json({ error: "Failed to trigger call" });
   }
 });
 
