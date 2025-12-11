@@ -35,7 +35,10 @@ app.post("/call", async (req, res) => {
 
     const payload = {
       from_number: RETELL_FROM_NUMBER,
-      to_number: toNumber
+      to_number: toNumber,
+      variables: {
+        call_type: "outbound"
+      }
     };
 
     console.log("Creating Retell phone call with payload:", payload);
