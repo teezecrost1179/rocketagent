@@ -10,6 +10,8 @@ const RETELL_FROM_NUMBER = process.env.RETELL_FROM_NUMBER!;
 const RETELL_API_KEY = process.env.RETELL_API_KEY!;
 // Optional but nice to have if you’re not binding the agent to the number:
 const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID;
+const RETELL_CHAT_AGENT_ID = process.env.RETELL_CHAT_AGENT_ID!;
+
 
 // Basic test route
 app.get("/", (_req, res) => {
@@ -75,6 +77,76 @@ app.post("/call", async (req, res) => {
     return res.status(500).json({ error: "Failed to trigger call" });
   }
 });
+
+// Simple Rocket Agent web chat endpoint
+app.post("/chat", async (req, res) => {
+  try {
+    const { message, chatId } = req.body;
+
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "Missing or invalid 'message' field" });
+    }
+
+    // 1) Create chat if we don't have a chatId yet
+    let chat_id = chatId as string | undefined;
+
+    if (!chat_id) {
+      const createChatResp = await axios.post(
+        "https://api.retellai.com/create-chat",
+        {
+          agent_id: RETELL_CHAT_AGENT_ID,
+          // optional: pass variables into your chat agent
+          // retell_llm_dynamic_variables: { source: "web_chat" }
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${RETELL_API_KEY}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      chat_id = createChatResp.data.chat_id;
+    }
+
+    // 2) Ask Retell for a completion in this chat
+    const completionResp = await axios.post(
+      "https://api.retellai.com/create-chat-completion",
+      {
+        chat_id,
+        content: message
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${RETELL_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const messages = completionResp.data.messages || [];
+    const last = messages[messages.length - 1];
+
+    const reply =
+      last && typeof last.content === "string"
+        ? last.content
+        : "(Sorry, I couldn't generate a response.)";
+
+    return res.json({
+      chatId: chat_id,
+      reply
+    });
+  } catch (err: any) {
+    console.error(
+      "Error in /chat:",
+      err?.response?.status,
+      err?.response?.statusText,
+      err?.response?.data || err.message
+    );
+    return res.status(500).json({ error: "Failed to get chat response" });
+  }
+});
+
 
 // Render uses PORT env var
 const PORT = process.env.PORT || 3000;
