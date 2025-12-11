@@ -6,9 +6,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
 const RETELL_FROM_NUMBER = process.env.RETELL_FROM_NUMBER!;
 const RETELL_API_KEY = process.env.RETELL_API_KEY!;
+// Optional but nice to have if you’re not binding the agent to the number:
+const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID;
 
 // Basic test route
 app.get("/", (_req, res) => {
@@ -18,13 +19,13 @@ app.get("/", (_req, res) => {
 // Endpoint to trigger an outbound call
 app.post("/call", async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, name } = req.body;
 
     if (!phone || typeof phone !== "string") {
       return res.status(400).json({ error: "Missing or invalid phone number" });
     }
 
-    // Normalize phone into something close to E.164
+    // Normalize phone into something like E.164
     let toNumber = phone.trim();
     if (!toNumber.startsWith("+")) {
       // Assume North America if they forgot the +1
@@ -33,14 +34,21 @@ app.post("/call", async (req, res) => {
       }
     }
 
-    const payload = {
+    // Use Retell’s dash-style pauses instead of SSML
+    const greeting = name
+      ? `Hi - this is Rocket, the AI receptionist from Rocket Science Designs. - Is this ${name}?`
+      : `Hi - this is Rocket, the AI receptionist from Rocket Science Designs. - You requested a call from us through the website. - Is now a good time to chat?`;
+
+    const payload: any = {
       from_number: RETELL_FROM_NUMBER,
       to_number: toNumber,
-      variables: {
+      // agent_id is optional if your Retell number is already bound to the agent;
+      // include it if you have it in env.
+      ...(RETELL_AGENT_ID ? { agent_id: RETELL_AGENT_ID } : {}),
+      retell_llm_dynamic_variables: {
         call_type: "outbound",
-        greeting:
-          "<speak>Hi there. <break time='400ms'/> This is the Rocket Science assistant calling from Rocket Science Designs. You requested a call from us - how can I help?</speak>"
-      }
+        greeting, // must be a string
+      },
     };
 
     console.log("Creating Retell phone call with payload:", payload);
@@ -51,8 +59,8 @@ app.post("/call", async (req, res) => {
       {
         headers: {
           Authorization: `Bearer ${RETELL_API_KEY}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       }
     );
 
