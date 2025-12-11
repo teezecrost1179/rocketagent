@@ -39,7 +39,7 @@ app.post("/call", async (req, res) => {
       variables: {
         call_type: "outbound",
         greeting:
-          "<speak>Hi there.<break time='400ms'/> This is the Rocket Science assistant calling from Rocket Science Designs.</speak>"
+          "<speak>Hi there. <break time='400ms'/> This is the Rocket Science assistant calling from Rocket Science Designs. You requested a call from us - how can I help?</speak>"
       }
     };
 
