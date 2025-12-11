@@ -33,17 +33,18 @@ function normalizePhone(raw: string): string {
 async function triggerRetellCall(toNumberRaw: string) {
   const to_number = normalizePhone(toNumberRaw);
 
-  const payload = {
+  const greeting =
+    "Hi - this is Rocket, the AI receptionist from Rocket Science Designs. " +
+    "We were just chatting on the website. - Is now a good time to talk on the phone?";
+
+  const payload: any = {
     from_number: RETELL_FROM_NUMBER,
     to_number,
-    // If you later add RETELL_AGENT_ID, you can include it here:
-    // ...(RETELL_AGENT_ID ? { agent_id: RETELL_AGENT_ID } : {}),
-    variables: {
+    ...(RETELL_AGENT_ID ? { agent_id: RETELL_AGENT_ID } : {}),
+    retell_llm_dynamic_variables: {
       call_type: "outbound",
-      greeting:
-        "Hi - this is Rocket, the AI receptionist from Rocket Science Designs. " +
-        "You requested a call from us through the website. - Is now a good time to chat?"
-    }
+      greeting,
+    },
   };
 
   console.log("Triggering Retell call from chat with payload:", payload);
@@ -51,8 +52,8 @@ async function triggerRetellCall(toNumberRaw: string) {
   await axios.post("https://api.retellai.com/v2/create-phone-call", payload, {
     headers: {
       Authorization: `Bearer ${RETELL_API_KEY}`,
-      "Content-Type": "application/json"
-    }
+      "Content-Type": "application/json",
+    },
   });
 }
 
