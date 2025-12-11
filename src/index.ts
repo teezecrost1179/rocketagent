@@ -1,8 +1,11 @@
 import express from "express";
 import axios from "axios";
+import cors from "cors";
 
 const app = express();
+app.use(cors());
 app.use(express.json());
+
 
 const RETELL_API_KEY = process.env.RETELL_API_KEY!;
 const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID!;
