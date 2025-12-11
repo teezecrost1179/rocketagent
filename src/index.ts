@@ -7,8 +7,8 @@ app.use(cors());
 app.use(express.json());
 
 
+const RETELL_FROM_NUMBER = process.env.RETELL_FROM_NUMBER!;
 const RETELL_API_KEY = process.env.RETELL_API_KEY!;
-const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID!;
 
 // Basic test route
 app.get("/", (_req, res) => {
