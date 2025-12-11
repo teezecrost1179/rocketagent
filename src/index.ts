@@ -37,7 +37,9 @@ app.post("/call", async (req, res) => {
       from_number: RETELL_FROM_NUMBER,
       to_number: toNumber,
       variables: {
-        call_type: "outbound"
+        call_type: "outbound",
+        greeting:
+          "<speak>Hi there.<break time='400ms'/> This is the Rocket Science assistant calling from Rocket Science Designs.</speak>"
       }
     };
 
