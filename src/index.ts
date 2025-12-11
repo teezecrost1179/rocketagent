@@ -26,7 +26,7 @@ app.post("/call", async (req, res) => {
 
     // TODO: replace with Retell's real outbound-call API
     const response = await axios.post(
-      "https://api.retell.ai/v1/outbound-call",
+      "https://api.retellai.com/v1/outbound-call",
       {
         agent_id: RETELL_AGENT_ID,
         to: phone
