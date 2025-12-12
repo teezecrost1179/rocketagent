@@ -4,14 +4,16 @@
   "description": "Rocket Science AI receptionist test API",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
-    "build": "tsc"
+    "seed": "node prisma/seed.cjs"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "axios": "^1.7.0",
     "cors": "^2.8.5",
-    "express": "^4.19.0"
+    "dotenv": "^17.2.3",
+    "express": "^4.19.0",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -19,5 +21,8 @@
     "@types/node": "^20.0.0",
     "prisma": "^7.1.0",
     "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }
