@@ -12,3 +12,17 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Client {
+  id              String   @id @default(cuid())
+  slug            String   @unique
+  displayName     String
+  rocketNumber    String   @unique
+  retellAgentId   String
+  timezone        String
+  officeHoursJson Json?
+  defaultGreeting String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
