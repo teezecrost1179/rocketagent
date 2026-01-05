@@ -6,3 +6,6 @@ node_modules
 # OS / editor noise (optional but nice)
 .DS_Store
 Thumbs.db
+
+dist/
+
