@@ -57,18 +57,18 @@
     return apiBase.replace(/\/+$/, "");
   }
 
-  function getCurrentScriptTag(): HTMLScriptElement | null {
-    // Modern browsers
-    const cs = document.currentScript as HTMLScriptElement | null;
-    if (cs) return cs;
-
-    // Fallback
-    const scripts = document.getElementsByTagName("script");
-    return scripts.length ? (scripts[scripts.length - 1] as HTMLScriptElement) : null;
+  function findWidgetScriptTag(): HTMLScriptElement | null {
+    // Match your hosted URL (adjust if needed)
+    const candidates = Array.from(document.getElementsByTagName("script"));
+    return (
+      candidates.find((s) => (s.src || "").includes("widget.rocketreception.ca/widget.js")) ||
+      candidates.find((s) => (s.src || "").endsWith("/widget.js")) ||
+      null
+    );
   }
 
   function getDatasetOptions(): WidgetConfig {
-    const s = getCurrentScriptTag();
+    const s = findWidgetScriptTag();
     if (!s) return {};
     const d = (s as any).dataset || {};
     return {
@@ -76,6 +76,7 @@
       subscriber: d.subscriber || ""
     };
   }
+
 
   function injectStyles() {
     if (document.getElementById("rocket-chat-widget-styles")) return;
@@ -665,9 +666,8 @@
   // Auto-init if loaded via script include (optional convenience)
   // If you prefer manual init from the host page, comment this out.
   try {
-    // Only auto-init if script tag has data-auto="true" OR if no one calls init manually
-    const s = getCurrentScriptTag();
-    const auto = s && (s as any).dataset && ((s as any).dataset.auto === "true");
-    if (auto) init();
-  } catch {}
+  const s = findWidgetScriptTag();
+  const auto = s?.dataset?.auto === "true";
+  if (auto) init();
+} catch {}
 })();
