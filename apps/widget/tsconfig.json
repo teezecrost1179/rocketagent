@@ -1,12 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2019",
-    "module": "CommonJS",
-    "outDir": "dist",
+    "module": "system",
+    "outFile": "dist/widget.js",
     "rootDir": "src",
     "strict": false,
-    "esModuleInterop": true,
-    "composite": true
+    "removeComments": false
   },
-  "include": ["src"]
+  "include": ["src/index.ts"]
 }

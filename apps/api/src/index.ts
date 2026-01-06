@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import callRoutes from "./routes/callRoutes";
 import chatRoutes from "./routes/chatRoutes";
+import widgetConfigRoutes from "./routes/widgetConfig";
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.get("/", (_req, res) => {
 // Mount routes
 app.use(callRoutes);
 app.use(chatRoutes);
+app.use(widgetConfigRoutes);
 
 // Render uses PORT env var
 const PORT = process.env.PORT || 3000;
