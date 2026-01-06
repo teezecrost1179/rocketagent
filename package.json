@@ -2,11 +2,26 @@
   "name": "rocketagent",
   "version": "1.0.0",
   "description": "Rocket Science AI receptionist test API",
-  "main": "dist/index.js",
+  "main": "apps/api/dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "seed": "node prisma/seed.cjs"
+    "build": "npm run build:api",
+    "start": "npm run start:api",
+    "seed": "npm run prisma:seed",
+    "build:api": "tsc -p apps/api/tsconfig.json",
+    "dev:api": "tsc -p apps/api/tsconfig.json --watch",
+    "start:api": "node apps/api/dist/index.js",
+    "prisma:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "prisma:migrate:dev": "prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema apps/api/prisma/schema.prisma",
+    "prisma:db:push": "prisma db push --schema apps/api/prisma/schema.prisma",
+    "prisma:seed": "prisma db seed --schema apps/api/prisma/schema.prisma",
+    "build:widget": "tsc -p apps/widget/tsconfig.json",
+    "dev:widget": "tsc -p apps/widget/tsconfig.json --watch"
+  },
+  "prisma": {
+    "schema": "apps/api/prisma/schema.prisma",
+    "seed": "node apps/api/prisma/seed.cjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",

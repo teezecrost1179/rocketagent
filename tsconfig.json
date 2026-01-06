@@ -1,11 +1,7 @@
 {
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
-    "outDir": "dist",
-    "rootDir": "src",
-    "strict": false,
-    "esModuleInterop": true
-  },
-  "include": ["src"]
+  "files": [],
+  "references": [
+    { "path": "./apps/api/tsconfig.json" },
+    { "path": "./apps/widget/tsconfig.json" }
+  ]
 }
