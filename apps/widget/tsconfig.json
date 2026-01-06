@@ -2,10 +2,17 @@
   "compilerOptions": {
     "target": "ES2019",
     "module": "system",
+    "moduleResolution": "node",
     "outFile": "dist/widget.js",
     "rootDir": "src",
+
+    "lib": ["DOM", "ES2019"],
+
+    "types": [],
+    "typeRoots": [],
+
     "strict": false,
-    "removeComments": false
+    "skipLibCheck": true
   },
   "include": ["src/index.ts"]
 }
