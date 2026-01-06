@@ -1,12 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "CommonJS",
-    "outDir": "dist",
+    "target": "ES2019",
+    "module": "system",
+    "moduleResolution": "node",
+    "outFile": "dist/widget.js",
     "rootDir": "src",
+
+    "lib": ["DOM", "ES2019"],
+    "types": [],
+
     "strict": false,
-    "esModuleInterop": true,
-    "composite": true
+    "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src/index.ts"]
 }
