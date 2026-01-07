@@ -1,45 +1,46 @@
 import { Router } from "express";
+import { prisma } from "../lib/prisma"; // adjust path if needed
 
 const router = Router();
 
-router.get("/widget-config", (req, res) => {
-  const subscriber = ((req.query.subscriber as string) || "").toLowerCase();
+router.get("/widget-config", async (req, res) => {
+  try {
+    const subscriber = ((req.query.subscriber as string) || "").toLowerCase().trim();
 
-  const configs: Record<string, any> = {
-    rocketsciencedesigns: {
-      title: "Rocket Science Designs",
-      subtitle: "Web, Shopify, and branding help",
-      greeting:
-        "Hi! I’m Rocket, the AI receptionist for Rocket Science Designs. What can I help you with today?",
-      avatarUrl: "https://rocketreception.ca/assets/rocket-science-designs.png"
-    },
-
-    winnipegbeauty: {
-      title: "Winnipeg Beauty",
-      subtitle: "Hair, nails, and self-care",
-      greeting:
-        "Hi! Welcome to Winnipeg Beauty 💅 Would you like to book an appointment or ask a question?",
-      avatarUrl: "https://rocketreception.ca/assets/winnipeg-beauty.png"
-    },
-
-    winnipegrenoking: {
-      title: "Winnipeg Reno King",
-      subtitle: "Kitchens, basements, and full renovations",
-      greeting:
-        "Hi! Thanks for calling Winnipeg Reno King. Are you looking for a quote or information on our services?",
-      avatarUrl: "https://rocketreception.ca/assets/winnipeg-reno-king.png"
-    },
-
-    winnipegprimoaccountants: {
-      title: "Winnipeg Primo Accountants",
-      subtitle: "Tax, bookkeeping, and small business accounting",
-      greeting:
-        "Hello! You’ve reached Winnipeg Primo Accountants. How can we assist you today?",
-      avatarUrl: "https://rocketreception.ca/assets/winnipeg-primo-accountants.png"
+    if (!subscriber) {
+      return res.status(400).json({ error: "subscriber query param is required" });
     }
-  };
 
-  res.json(configs[subscriber] || {});
+    const s = await prisma.subscriber.findUnique({
+      where: { slug: subscriber },
+      select: {
+        status: true,
+        widgetEnabled: true,
+        widgetTitle: true,
+        widgetSubtitle: true,
+        widgetGreeting: true,
+        widgetAvatarUrl: true,
+        offlineMessage: true,
+      },
+    });
+
+    // Hide existence details and prevent cross-tenant “probing”
+    if (!s || s.status !== "active" || s.widgetEnabled === false) {
+      return res.status(404).json({});
+    }
+
+    // Return widget-safe fields only, matching your old JSON keys
+    return res.json({
+      title: s.widgetTitle ?? "",
+      subtitle: s.widgetSubtitle ?? "",
+      greeting: s.widgetGreeting ?? "",
+      avatarUrl: s.widgetAvatarUrl ?? "",
+      offlineMessage: s.offlineMessage ?? "",
+    });
+  } catch (err) {
+    console.error("widget-config error:", err);
+    return res.status(500).json({});
+  }
 });
 
 export default router;
