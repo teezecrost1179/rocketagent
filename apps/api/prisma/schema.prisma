@@ -13,16 +13,27 @@ datasource db {
   provider = "postgresql"
 }
 
-model Client {
-  id              String   @id @default(cuid())
-  slug            String   @unique
-  displayName     String
-  rocketNumber    String   @unique
-  retellAgentId   String
-  timezone        String
-  officeHoursJson Json?
-  defaultGreeting String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model Subscriber {
+  id String @id @default(uuid())
+
+  // Identity
+  slug        String @unique
+  legalName   String?
+  displayName String?
+
+  // Status / lifecycle
+  status String @default("active")
+
+  // Widget configuration (this replaces widgetConfig.ts)
+  widgetTitle       String?
+  widgetSubtitle    String?
+  widgetGreeting    String?
+  widgetAvatarUrl   String?
+  widgetEnabled     Boolean @default(true)
+  offlineMessage    String?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
