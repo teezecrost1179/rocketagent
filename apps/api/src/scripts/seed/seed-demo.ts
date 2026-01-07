@@ -1,4 +1,6 @@
-import { prisma } from "../lib/prisma";
+import "dotenv/config";
+import { prisma } from "../../lib/prisma";
+import { upsertSubscriber } from "./seed-core";
 
 async function main() {
   const demos = [
@@ -29,25 +31,14 @@ async function main() {
   ];
 
   for (const d of demos) {
-    await prisma.subscriber.upsert({
-      where: { slug: d.slug },
-      update: {
-        status: "active",
-        widgetEnabled: true,
-        widgetTitle: d.widgetTitle,
-        widgetSubtitle: d.widgetSubtitle,
-        widgetGreeting: d.widgetGreeting,
-        widgetAvatarUrl: d.widgetAvatarUrl,
-      },
-      create: {
-        slug: d.slug,
-        status: "active",
-        widgetEnabled: true,
-        widgetTitle: d.widgetTitle,
-        widgetSubtitle: d.widgetSubtitle,
-        widgetGreeting: d.widgetGreeting,
-        widgetAvatarUrl: d.widgetAvatarUrl,
-      },
+    await upsertSubscriber({
+      slug: d.slug,
+      status: "active",
+      widgetEnabled: true,
+      widgetTitle: d.widgetTitle,
+      widgetSubtitle: d.widgetSubtitle,
+      widgetGreeting: d.widgetGreeting,
+      widgetAvatarUrl: d.widgetAvatarUrl,
     });
 
     console.log(`Seeded demo subscriber: ${d.slug}`);

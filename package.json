@@ -17,7 +17,9 @@
     "prisma:db:push": "prisma db push --schema apps/api/prisma/schema.prisma",
     "prisma:seed": "prisma db seed --schema apps/api/prisma/schema.prisma",
     "build:widget": "tsc -p apps/widget/tsconfig.json",
-    "dev:widget": "tsc -p apps/widget/tsconfig.json --watch"
+    "dev:widget": "tsc -p apps/widget/tsconfig.json --watch",
+    "seed:core": "node apps/api/dist/scripts/seed/seed-core.js",
+    "seed:demo": "node apps/api/dist/scripts/seed/seed-demo.js"
   },
   "prisma": {
     "schema": "apps/api/prisma/schema.prisma",

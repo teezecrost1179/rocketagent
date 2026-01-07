@@ -4,6 +4,40 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
+enum ChannelType {
+  VOICE
+  CHAT
+  SMS
+  EMAIL
+}
+
+enum ProviderType {
+  RETELL
+  TWILIO
+  OTHER
+}
+
+enum InteractionDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum InteractionStatus {
+  STARTED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum MessageRole {
+  SYSTEM
+  AGENT
+  USER
+  TOOL
+}
+
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -35,5 +69,125 @@ model Subscriber {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // NEW: tenant/billing/contact
+  primaryEmail  String?
+  billingEmail  String?
+  plan          String?
+  billingStatus String?
+
+  // Relations (NEW)
+  channels     SubscriberChannel[]
+  interactions Interaction[]
+  usageRollups UsageRollup[]
+
 }
+
+model Agent {
+  id         String   @id @default(uuid())
+  name       String
+  promptText String
+  status     String   @default("active")
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  channels     SubscriberChannel[]
+  interactions Interaction[]
+}
+
+model SubscriberChannel {
+  id             String       @id @default(uuid())
+  subscriberId   String
+  channel        ChannelType
+  enabled        Boolean      @default(false)
+  provider       ProviderType @default(OTHER)
+
+  providerAgentId    String?
+  providerNumberE164 String?
+  providerInboxId    String?
+
+  defaultAgentId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  defaultAgent Agent?     @relation(fields: [defaultAgentId], references: [id])
+
+  @@unique([subscriberId, channel])
+  @@index([channel, enabled])
+}
+
+model Interaction {
+  id             String             @id @default(uuid())
+  subscriberId   String
+  channel        ChannelType
+  direction      InteractionDirection
+  status         InteractionStatus  @default(STARTED)
+  provider       ProviderType       @default(OTHER)
+
+  providerCallId         String?
+  providerConversationId String?
+
+  fromNumberE164 String?
+  toNumberE164   String?
+  contactName    String?
+  contactEmail   String?
+
+  agentId     String?
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  durationSec Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  agent      Agent?     @relation(fields: [agentId], references: [id])
+
+  messages InteractionMessage[]
+
+  @@index([subscriberId, startedAt])
+  @@index([provider, providerCallId])
+}
+
+model InteractionMessage {
+  id              String      @id @default(uuid())
+  interactionId   String
+  role            MessageRole
+  content         String
+  providerMessageId String?
+  createdAt       DateTime @default(now())
+
+  interaction Interaction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+
+  @@index([interactionId, createdAt])
+}
+
+model UsageRollup {
+  id           String   @id @default(uuid())
+  subscriberId String
+
+  periodYear  Int
+  periodMonth Int
+
+  voiceCallsCount Int @default(0)
+  voiceMinutes    Int @default(0)
+
+  chatConversationsCount Int @default(0)
+  chatMessagesCount      Int @default(0)
+
+  smsCount   Int @default(0)
+  emailCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriber Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, periodYear, periodMonth])
+  @@index([periodYear, periodMonth])
+}
+
 
