@@ -1,0 +1,66 @@
+import { prisma } from "../lib/prisma";
+
+async function main() {
+  const demos = [
+    {
+      slug: "winnipegbeauty",
+      widgetTitle: "Winnipeg Beauty",
+      widgetSubtitle: "Hair, nails, and self-care",
+      widgetGreeting:
+        "Hi! Welcome to Winnipeg Beauty 💅 Would you like to book an appointment or ask a question?",
+      widgetAvatarUrl: "https://rocketreception.ca/assets/winnipeg-beauty.png",
+    },
+    {
+      slug: "winnipegrenoking",
+      widgetTitle: "Winnipeg Reno King",
+      widgetSubtitle: "Kitchens, basements, and full renovations",
+      widgetGreeting:
+        "Hi! Thanks for calling Winnipeg Reno King. Are you looking for a quote or information on our services?",
+      widgetAvatarUrl: "https://rocketreception.ca/assets/winnipeg-reno-king.png",
+    },
+    {
+      slug: "winnipegprimoaccountants",
+      widgetTitle: "Winnipeg Primo Accountants",
+      widgetSubtitle: "Tax, bookkeeping, and small business accounting",
+      widgetGreeting:
+        "Hello! You’ve reached Winnipeg Primo Accountants. How can we assist you today?",
+      widgetAvatarUrl: "https://rocketreception.ca/assets/winnipeg-primo-accountants.png",
+    },
+  ];
+
+  for (const d of demos) {
+    await prisma.subscriber.upsert({
+      where: { slug: d.slug },
+      update: {
+        status: "active",
+        widgetEnabled: true,
+        widgetTitle: d.widgetTitle,
+        widgetSubtitle: d.widgetSubtitle,
+        widgetGreeting: d.widgetGreeting,
+        widgetAvatarUrl: d.widgetAvatarUrl,
+      },
+      create: {
+        slug: d.slug,
+        status: "active",
+        widgetEnabled: true,
+        widgetTitle: d.widgetTitle,
+        widgetSubtitle: d.widgetSubtitle,
+        widgetGreeting: d.widgetGreeting,
+        widgetAvatarUrl: d.widgetAvatarUrl,
+      },
+    });
+
+    console.log(`Seeded demo subscriber: ${d.slug}`);
+  }
+
+  console.log("Demo subscribers seed complete.");
+}
+
+main()
+  .catch((e) => {
+    console.error("Seed failed:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
