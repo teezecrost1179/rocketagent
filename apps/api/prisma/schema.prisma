@@ -85,7 +85,7 @@ model Subscriber {
 
 model Agent {
   id         String   @id @default(uuid())
-  name       String
+  name       String   @unique
   promptText String
   status     String   @default("active")
 
