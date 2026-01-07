@@ -1,11 +1,10 @@
-const { PrismaClient } = require("@prisma/client");
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma";
 
 async function main() {
   const slug = "rocketsciencedesigns";
 
   const existing = await prisma.subscriber.findUnique({ where: { slug } });
+
   if (existing) {
     console.log(`Subscriber '${slug}' already exists. Skipping.`);
     return;
@@ -33,5 +32,6 @@ main()
     process.exit(1);
   })
   .finally(async () => {
+    // IMPORTANT: with adapter-pg you still want to disconnect Prisma
     await prisma.$disconnect();
   });
