@@ -13,14 +13,9 @@ CREATE TYPE "InteractionStatus" AS ENUM ('STARTED', 'IN_PROGRESS', 'COMPLETED', 
 -- CreateEnum
 CREATE TYPE "MessageRole" AS ENUM ('SYSTEM', 'AGENT', 'USER', 'TOOL');
 
--- AlterTable
-ALTER TABLE "Subscriber" ADD COLUMN     "billingEmail" TEXT,
-ADD COLUMN     "billingStatus" TEXT,
-ADD COLUMN     "plan" TEXT,
-ADD COLUMN     "primaryEmail" TEXT;
 
 -- DropTable
-DROP TABLE "Client";
+DROP TABLE IF EXISTS "Client";
 
 -- CreateTable
 CREATE TABLE "Agent" (
@@ -130,20 +125,10 @@ CREATE INDEX "UsageRollup_periodYear_periodMonth_idx" ON "UsageRollup"("periodYe
 CREATE UNIQUE INDEX "UsageRollup_subscriberId_periodYear_periodMonth_key" ON "UsageRollup"("subscriberId", "periodYear", "periodMonth");
 
 -- AddForeignKey
-ALTER TABLE "SubscriberChannel" ADD CONSTRAINT "SubscriberChannel_subscriberId_fkey" FOREIGN KEY ("subscriberId") REFERENCES "Subscriber"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "SubscriberChannel" ADD CONSTRAINT "SubscriberChannel_defaultAgentId_fkey" FOREIGN KEY ("defaultAgentId") REFERENCES "Agent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Interaction" ADD CONSTRAINT "Interaction_subscriberId_fkey" FOREIGN KEY ("subscriberId") REFERENCES "Subscriber"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Interaction" ADD CONSTRAINT "Interaction_agentId_fkey" FOREIGN KEY ("agentId") REFERENCES "Agent"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "InteractionMessage" ADD CONSTRAINT "InteractionMessage_interactionId_fkey" FOREIGN KEY ("interactionId") REFERENCES "Interaction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "UsageRollup" ADD CONSTRAINT "UsageRollup_subscriberId_fkey" FOREIGN KEY ("subscriberId") REFERENCES "Subscriber"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

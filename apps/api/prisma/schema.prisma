@@ -37,6 +37,17 @@ enum MessageRole {
   TOOL
 }
 
+enum TransportProvider {
+  TWILIO
+  RETELL
+  OTHER
+}
+
+enum AiProvider {
+  RETELL
+  OTHER
+}
+
 
 generator client {
   provider = "prisma-client-js"
@@ -101,11 +112,13 @@ model SubscriberChannel {
   subscriberId   String
   channel        ChannelType
   enabled        Boolean      @default(false)
-  provider       ProviderType @default(OTHER)
+  transportProvider   TransportProvider
+  aiProvider          AiProvider
 
   providerAgentId    String?
   providerNumberE164 String?
   providerInboxId    String?
+
 
   defaultAgentId String?
 
@@ -189,5 +202,6 @@ model UsageRollup {
   @@unique([subscriberId, periodYear, periodMonth])
   @@index([periodYear, periodMonth])
 }
+
 
 

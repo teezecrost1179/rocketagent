@@ -14,6 +14,10 @@ CREATE TABLE "Subscriber" (
     "widgetAvatarUrl" TEXT,
     "widgetEnabled" BOOLEAN NOT NULL DEFAULT true,
     "offlineMessage" TEXT,
+    "billingEmail" TEXT,
+    "billingStatus" TEXT,
+    "plan" TEXT,
+    "primaryEmail" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

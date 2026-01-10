@@ -18,8 +18,10 @@
     "prisma:seed": "prisma db seed --schema apps/api/prisma/schema.prisma",
     "build:widget": "tsc -p apps/widget/tsconfig.json",
     "dev:widget": "tsc -p apps/widget/tsconfig.json --watch",
-    "seed:core": "node apps/api/dist/scripts/seed/seed-core.js",
-    "seed:demo": "node apps/api/dist/scripts/seed/seed-demo.js"
+    "seed:core": "node -r dotenv/config apps/api/dist/scripts/seed/seed-core.js",
+    "seed:demo": "node -r dotenv/config apps/api/dist/scripts/seed/seed-demo.js",
+    "seed:agents": "node -r dotenv/config apps/api/dist/scripts/seed/seed-agents.js",
+    "seed:channels": "node -r dotenv/config apps/api/dist/scripts/seed/seed-channels.js"
   },
   "prisma": {
     "schema": "apps/api/prisma/schema.prisma",
