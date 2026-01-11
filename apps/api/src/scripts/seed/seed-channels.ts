@@ -27,6 +27,7 @@ async function main() {
       },
     });
     console.log(`Upserted CHAT channel for subscriber: ${sub.slug}`);
+    
     await prisma.subscriberChannel.upsert({
       where: {
         subscriberId_channel: {
@@ -52,6 +53,33 @@ async function main() {
       },
     });
     console.log(`Upserted VOICE channel for subscriber: ${sub.slug}`);
+
+    await prisma.subscriberChannel.upsert({
+      where: {
+        subscriberId_channel: {
+          subscriberId: sub.id,
+          channel: "SMS",
+        },
+      },
+      create: {
+        subscriberId: sub.id,
+        channel: "SMS",
+        enabled: false, // tier-gated
+        transportProvider: "TWILIO",
+        aiProvider: "RETELL",
+        providerNumberE164: "+14316005505",
+        providerAgentId: "agent_7ace7a26b3a6e5a2d9f3cea066",
+      },
+      update: {
+        enabled: false,
+        transportProvider: "TWILIO",
+        aiProvider: "RETELL",
+        providerNumberE164: "+14316005505",
+        providerAgentId: "agent_7ace7a26b3a6e5a2d9f3cea066",
+      },
+    });
+
+    console.log(`Upserted SMS channel for subscriber: ${sub.slug}`);
 
 
 
