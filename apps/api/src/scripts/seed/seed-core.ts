@@ -54,19 +54,33 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
 }
 
 async function main() {
+  // Real business
   await upsertSubscriber({
     slug: "rocketsciencedesigns",
     legalName: "Rocket Science Designs",
     displayName: "Rocket Science Designs",
     status: "active",
-    widgetTitle: "Rocket Reception",
-    widgetSubtitle: "We’ll take it from here.",
+    widgetTitle: "Rocket Science Designs",
+    widgetSubtitle: "Web, Shopify, and branding help",
     widgetGreeting: "Hi! How can we help today?",
+    widgetEnabled: true,
+  });
+
+  // Demo gatekeeper (owns the demo Twilio number)
+  await upsertSubscriber({
+    slug: "demo-gatekeeper",
+    legalName: "Rocket Reception Demo",
+    displayName: "Rocket Reception Demo",
+    status: "active",
+    widgetTitle: "Rocket Reception",
+    widgetSubtitle: "We will take it from here.",
+    widgetGreeting: "Hi! Which demo business would you like to reach today?",
     widgetEnabled: true,
   });
 
   console.log("Core seed complete.");
 }
+
 
 
 if (require.main === module) {

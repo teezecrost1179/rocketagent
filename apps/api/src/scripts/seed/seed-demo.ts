@@ -34,6 +34,8 @@ async function main() {
     await upsertSubscriber({
       slug: d.slug,
       status: "active",
+      legalName: d.widgetTitle,
+      displayName: d.widgetTitle,
       widgetEnabled: true,
       widgetTitle: d.widgetTitle,
       widgetSubtitle: d.widgetSubtitle,
