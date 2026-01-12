@@ -36,29 +36,37 @@ router.post(
         }
     }
 
-    // --- STEP 2: resolve subscriber channel from "To" number ---
-    const smsChannel = await prisma.subscriberChannel.findFirst({
-        where: {
-            channel: "SMS",
-            enabled: true,
-            providerNumberE164: To,
-        },
-        select: {
-            id: true,
-            subscriberId: true,
-        },
-        });
+    // --- STEP 2: resolve subscriber channel from "To" number (safe) ---
+    const matches = await prisma.subscriberChannel.findMany({
+    where: {
+        channel: "SMS",
+        enabled: true,
+        providerNumberE164: To,
+    },
+    select: {
+        id: true,
+        subscriberId: true,
+    },
+    });
 
-        if (!smsChannel) {
-        console.warn("[Twilio SMS inbound] No enabled SMS channel for number", {
+    if (matches.length === 0) {
+        console.warn("[Twilio SMS inbound] No enabled SMS channel for number", { To });
+    } else if (matches.length > 1) {
+        console.error("[Twilio SMS inbound] Multiple enabled SMS channels claim this number", {
             To,
-        });
-        } else {
+            matches,
+         });
+    // For safety: do not route unpredictably
+        return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response></Response>`);
+    } else {
+        const smsChannel = matches[0];
         console.log("[Twilio SMS inbound] Matched SMS channel", {
             channelId: smsChannel.id,
             subscriberId: smsChannel.subscriberId,
         });
     }
+
 
 
     console.log("[Twilio SMS inbound]", {
