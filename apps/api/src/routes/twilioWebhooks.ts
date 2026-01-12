@@ -61,13 +61,17 @@ router.post(
         <Response></Response>`);
     } else {
         const smsChannel = matches[0];
+        console.log("[Twilio SMS inbound] Matched SMS channel", {
+            channelId: smsChannel.id,
+            subscriberId: smsChannel.subscriberId,
+        });
 
         // --- STEP 3: create (or reuse) an Interaction for this inbound SMS ---
         let interaction = await prisma.interaction.findFirst({
-        where: {
-            provider: "TWILIO",
-            providerConversationId: MessageSid, // using MessageSid as the "conversation" identifier for SMS
-        },
+            where: {
+                provider: "TWILIO",
+                providerConversationId: MessageSid, // using MessageSid as the "conversation" identifier for SMS
+            },
         });
 
         if (!interaction) {
@@ -99,11 +103,23 @@ router.post(
             });
         }
 
-
-        console.log("[Twilio SMS inbound] Matched SMS channel", {
-            channelId: smsChannel.id,
-            subscriberId: smsChannel.subscriberId,
+        // --- STEP 4: persist the inbound SMS message ---
+        await prisma.interactionMessage.create({
+            data: {
+                interactionId: interaction.id,
+                role: "USER",                // SMS sender is the user
+                content: Body || "",         // Body should exist, but be defensive
+                providerMessageId: MessageSid,
+            },
         });
+
+        console.log("[Twilio SMS inbound] Created InteractionMessage", {
+        interactionId: interaction.id,
+        providerMessageId: MessageSid,
+        });
+
+
+  
     }
 
 
