@@ -61,6 +61,45 @@ router.post(
         <Response></Response>`);
     } else {
         const smsChannel = matches[0];
+
+        // --- STEP 3: create (or reuse) an Interaction for this inbound SMS ---
+        let interaction = await prisma.interaction.findFirst({
+        where: {
+            provider: "TWILIO",
+            providerConversationId: MessageSid, // using MessageSid as the "conversation" identifier for SMS
+        },
+        });
+
+        if (!interaction) {
+            interaction = await prisma.interaction.create({
+                data: {
+                subscriberId: smsChannel.subscriberId,
+                channel: "SMS",
+                direction: "INBOUND",
+                status: "STARTED",
+                provider: "TWILIO",
+
+                // Twilio identifiers
+                providerConversationId: MessageSid,
+
+                // Addressing
+                fromNumberE164: From,
+                toNumberE164: To,
+                },
+            });
+
+            console.log("[Twilio SMS inbound] Created Interaction", {
+                interactionId: interaction.id,
+                subscriberId: interaction.subscriberId,
+            });
+        } else {
+            console.log("[Twilio SMS inbound] Reused existing Interaction", {
+                interactionId: interaction.id,
+                subscriberId: interaction.subscriberId,
+            });
+        }
+
+
         console.log("[Twilio SMS inbound] Matched SMS channel", {
             channelId: smsChannel.id,
             subscriberId: smsChannel.subscriberId,
