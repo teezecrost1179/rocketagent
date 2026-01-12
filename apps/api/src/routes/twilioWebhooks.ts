@@ -11,7 +11,7 @@ router.post(
   "/sms",
   // Parse Twilio form-encoded body
   require("express").urlencoded({ extended: false }),
-  (req, res) => {
+  async (req, res) => {
     const {
       MessageSid,
       From,
