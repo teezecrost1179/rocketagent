@@ -36,6 +36,31 @@ router.post(
         }
     }
 
+    // --- STEP 2: resolve subscriber channel from "To" number ---
+    const smsChannel = await prisma.subscriberChannel.findFirst({
+        where: {
+            channel: "SMS",
+            enabled: true,
+            providerNumberE164: To,
+        },
+        select: {
+            id: true,
+            subscriberId: true,
+        },
+        });
+
+        if (!smsChannel) {
+        console.warn("[Twilio SMS inbound] No enabled SMS channel for number", {
+            To,
+        });
+        } else {
+        console.log("[Twilio SMS inbound] Matched SMS channel", {
+            channelId: smsChannel.id,
+            subscriberId: smsChannel.subscriberId,
+        });
+    }
+
+
     console.log("[Twilio SMS inbound]", {
       MessageSid,
       From,
