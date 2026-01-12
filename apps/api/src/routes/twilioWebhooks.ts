@@ -22,6 +22,17 @@ router.post(
       AccountSid,
     } = req.body || {};
 
+    //log payload
+    console.log("[Twilio SMS inbound]", {
+      MessageSid,
+      From,
+      To,
+      Body,
+      NumMedia,
+      SmsStatus,
+      AccountSid,
+    });
+
     // --- STEP 1: idempotency check ---
     if (MessageSid) {
         const existing = await prisma.interactionMessage.findFirst({
@@ -71,7 +82,36 @@ router.post(
             subscriberId: smsChannel.subscriberId,
         });
 
-        
+
+        // --- B-LITE: rate limit inbound SMS per sender per hour ---
+        const MAX_SMS_PER_HOUR = 5;
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+        const recentInboundCount = await prisma.interactionMessage.count({
+            where: {
+                role: "USER",
+                createdAt: { gte: oneHourAgo },
+                interaction: {
+                    subscriberId: smsChannel.subscriberId,
+                    channel: "SMS",
+                    fromNumberE164: From,
+                    toNumberE164: To,
+                },
+            },
+        });
+
+        if (recentInboundCount >= MAX_SMS_PER_HOUR) {
+            console.warn("[Twilio SMS inbound] Rate limit hit — ignoring message", {
+                subscriberId: smsChannel.subscriberId,
+                From,
+                To,
+                recentInboundCount,
+                MAX_SMS_PER_HOUR,
+            });
+
+            return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+            <Response></Response>`);
+        }        
      
         // --- STEP 3: create (or reuse) an Interaction for this inbound SMS ---
         // --- STEP 3B: D-lite threading ---
@@ -93,26 +133,26 @@ router.post(
 
         if (!interaction) {
             interaction = await prisma.interaction.create({
-            data: {
-                subscriberId: smsChannel.subscriberId,
-                channel: "SMS",
-                direction: "INBOUND",
-                status: "STARTED",
-                provider: "TWILIO",
+                data: {
+                    subscriberId: smsChannel.subscriberId,
+                    channel: "SMS",
+                    direction: "INBOUND",
+                    status: "STARTED",
+                    provider: "TWILIO",
 
-                // For SMS, we treat Interaction as the thread.
-                // Keep providerConversationId as the first MessageSid that opened the thread.
-                providerConversationId: MessageSid,
+                    // For SMS, we treat Interaction as the thread.
+                    // Keep providerConversationId as the first MessageSid that opened the thread.
+                    providerConversationId: MessageSid,
 
-                fromNumberE164: From,
-                toNumberE164: To,
-            },
-            select: { id: true, subscriberId: true },
-        });
-        console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
-            interactionId: interaction.id,
-            subscriberId: interaction.subscriberId,
-        });
+                    fromNumberE164: From,
+                    toNumberE164: To,
+                },
+                select: { id: true, subscriberId: true },
+            });
+            console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
+                interactionId: interaction.id,
+                subscriberId: interaction.subscriberId,
+            });
         } else {
             console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
                 interactionId: interaction.id,
@@ -143,20 +183,9 @@ router.post(
     }
 
 
-
-    console.log("[Twilio SMS inbound]", {
-      MessageSid,
-      From,
-      To,
-      Body,
-      NumMedia,
-      SmsStatus,
-      AccountSid,
-    });
-
     // Return empty TwiML so Twilio considers it handled but sends no reply
     res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
-<Response></Response>`);
+    <Response></Response>`);
   }
 );
 
