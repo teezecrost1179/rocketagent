@@ -36,6 +36,7 @@ router.post(
         }
     }
 
+
     // --- STEP 2: resolve subscriber channel from "To" number (safe) ---
     const matches = await prisma.subscriberChannel.findMany({
     where: {
@@ -51,6 +52,9 @@ router.post(
 
     if (matches.length === 0) {
         console.warn("[Twilio SMS inbound] No enabled SMS channel for number", { To });
+        return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response></Response>`);
+
     } else if (matches.length > 1) {
         console.error("[Twilio SMS inbound] Multiple enabled SMS channels claim this number", {
             To,
@@ -60,48 +64,62 @@ router.post(
         return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
         <Response></Response>`);
     } else {
+        //  *** Matched SMS channel - single match ***          ***single sms channel match ***
         const smsChannel = matches[0];
         console.log("[Twilio SMS inbound] Matched SMS channel", {
             channelId: smsChannel.id,
             subscriberId: smsChannel.subscriberId,
         });
 
+        
+     
         // --- STEP 3: create (or reuse) an Interaction for this inbound SMS ---
+        // --- STEP 3B: D-lite threading ---
+        // Reuse the most recent SMS interaction for this From/To within a window.
+        const THREAD_WINDOW_HOURS = 24;
+        const threadWindowStart = new Date(Date.now() - THREAD_WINDOW_HOURS * 60 * 60 * 1000);
+
         let interaction = await prisma.interaction.findFirst({
             where: {
-                provider: "TWILIO",
-                providerConversationId: MessageSid, // using MessageSid as the "conversation" identifier for SMS
+                subscriberId: smsChannel.subscriberId,
+                channel: "SMS",
+                fromNumberE164: From,
+                toNumberE164: To,
+                startedAt: { gte: threadWindowStart },
             },
+            orderBy: { startedAt: "desc" },
+            select: { id: true, subscriberId: true },
         });
 
         if (!interaction) {
             interaction = await prisma.interaction.create({
-                data: {
+            data: {
                 subscriberId: smsChannel.subscriberId,
                 channel: "SMS",
                 direction: "INBOUND",
                 status: "STARTED",
                 provider: "TWILIO",
 
-                // Twilio identifiers
+                // For SMS, we treat Interaction as the thread.
+                // Keep providerConversationId as the first MessageSid that opened the thread.
                 providerConversationId: MessageSid,
 
-                // Addressing
                 fromNumberE164: From,
                 toNumberE164: To,
-                },
-            });
-
-            console.log("[Twilio SMS inbound] Created Interaction", {
-                interactionId: interaction.id,
-                subscriberId: interaction.subscriberId,
-            });
+            },
+            select: { id: true, subscriberId: true },
+        });
+        console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
+            interactionId: interaction.id,
+            subscriberId: interaction.subscriberId,
+        });
         } else {
-            console.log("[Twilio SMS inbound] Reused existing Interaction", {
+            console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
                 interactionId: interaction.id,
                 subscriberId: interaction.subscriberId,
             });
         }
+
 
         // --- STEP 4: persist the inbound SMS message ---
         await prisma.interactionMessage.create({
@@ -114,10 +132,12 @@ router.post(
         });
 
         console.log("[Twilio SMS inbound] Created InteractionMessage", {
-        interactionId: interaction.id,
-        providerMessageId: MessageSid,
+            interactionId: interaction.id,
+            providerMessageId: MessageSid,
         });
 
+        return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+        <Response></Response>`);
 
   
     }
