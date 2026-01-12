@@ -58,6 +58,7 @@ router.post(
     select: {
         id: true,
         subscriberId: true,
+        providerInboxId: true,
     },
     });
 
@@ -84,7 +85,7 @@ router.post(
 
 
         // --- B-LITE: rate limit inbound SMS per sender per hour ---
-        const MAX_SMS_PER_HOUR = 5;
+        const MAX_SMS_PER_HOUR = 10;
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
         const recentInboundCount = await prisma.interactionMessage.count({
@@ -119,46 +120,58 @@ router.post(
         const THREAD_WINDOW_HOURS = 24;
         const threadWindowStart = new Date(Date.now() - THREAD_WINDOW_HOURS * 60 * 60 * 1000);
 
-        let interaction = await prisma.interaction.findFirst({
-            where: {
-                subscriberId: smsChannel.subscriberId,
-                channel: "SMS",
-                fromNumberE164: From,
-                toNumberE164: To,
-                startedAt: { gte: threadWindowStart },
-            },
-            orderBy: { startedAt: "desc" },
-            select: { id: true, subscriberId: true },
+        type SmsThread = {
+            id: string;
+            subscriberId: string;
+            providerConversationId: string | null;
+        };
+
+        let interaction: SmsThread | null = await prisma.interaction.findFirst({
+        where: {
+            subscriberId: smsChannel.subscriberId,
+            channel: "SMS",
+            fromNumberE164: From,
+            toNumberE164: To,
+            startedAt: { gte: threadWindowStart },
+        },
+        orderBy: { startedAt: "desc" },
+        select: {
+            id: true,
+            subscriberId: true,
+            providerConversationId: true,
+        },
         });
 
         if (!interaction) {
-            interaction = await prisma.interaction.create({
-                data: {
-                    subscriberId: smsChannel.subscriberId,
-                    channel: "SMS",
-                    direction: "INBOUND",
-                    status: "STARTED",
-                    provider: "TWILIO",
+        interaction = await prisma.interaction.create({
+            data: {
+            subscriberId: smsChannel.subscriberId,
+            channel: "SMS",
+            direction: "INBOUND",
+            status: "STARTED",
+            provider: "TWILIO",
+            fromNumberE164: From,
+            toNumberE164: To,
+            providerConversationId: null, // <-- IMPORTANT
+            },
+            select: {
+            id: true,
+            subscriberId: true,
+            providerConversationId: true,
+            },
+        });
 
-                    // For SMS, we treat Interaction as the thread.
-                    // Keep providerConversationId as the first MessageSid that opened the thread.
-                    providerConversationId: MessageSid,
-
-                    fromNumberE164: From,
-                    toNumberE164: To,
-                },
-                select: { id: true, subscriberId: true },
-            });
-            console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
-                interactionId: interaction.id,
-                subscriberId: interaction.subscriberId,
-            });
+        console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
+            interactionId: interaction.id,
+            subscriberId: interaction.subscriberId,
+        });
         } else {
-            console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
-                interactionId: interaction.id,
-                subscriberId: interaction.subscriberId,
-            });
+        console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
+            interactionId: interaction.id,
+            subscriberId: interaction.subscriberId,
+        });
         }
+
 
 
         // --- STEP 4: persist the inbound SMS message ---
@@ -175,6 +188,85 @@ router.post(
             interactionId: interaction.id,
             providerMessageId: MessageSid,
         });
+
+
+        // --- A1: get AI reply from Retell (do NOT send SMS yet) ---
+        const retellApiKey = process.env.RETELL_API_KEY;
+        const retellChatAgentId = smsChannel.providerInboxId; // <-- store chat agent id here
+
+        if (!retellApiKey) {
+        console.error("[SMS A1] Missing RETELL_API_KEY");
+        } else if (!retellChatAgentId) {
+        console.error("[SMS A1] Missing Retell chat agent id (smsChannel.providerInboxId)");
+        } else {
+        // Reuse chat_id if we already created one for this Interaction thread
+        let chatId = interaction.providerConversationId;
+
+        // If providerConversationId is empty OR still looks like a Twilio MessageSid ("SM...")
+        if (!chatId || chatId.startsWith("SM")) {
+            const createChatResp = await fetch("https://api.retellai.com/create-chat", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${retellApiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                agent_id: retellChatAgentId,
+                metadata: {
+                subscriberId: smsChannel.subscriberId,
+                from: From,
+                to: To,
+                },
+            }),
+            });
+
+            if (!createChatResp.ok) {
+            const text = await createChatResp.text();
+            console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
+            } else {
+            const created = await createChatResp.json();
+            chatId = created.chat_id;
+
+            // Save chat_id so future SMS in this thread keeps context
+            await prisma.interaction.update({
+                where: { id: interaction.id },
+                data: { providerConversationId: chatId },
+            });
+
+            console.log("[SMS A1] Created Retell chat", { chatId });
+            }
+        }
+
+        if (chatId) {
+            const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${retellApiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                chat_id: chatId,
+                content: Body || "",
+            }),
+            });
+
+            if (!completionResp.ok) {
+            const text = await completionResp.text();
+            console.error("[SMS A1] Retell create-chat-completion failed", completionResp.status, text);
+            } else {
+            const completion = await completionResp.json();
+
+            // Grab the last agent message (Retell returns new agent messages in `messages`)
+            const lastAgentMsg =
+                [...(completion.messages || [])].reverse().find((m: any) => m.role === "agent")?.content;
+
+            console.log("[SMS A1] Retell reply (not sent)", { chatId, reply: lastAgentMsg });
+            }
+        }
+        }
+
+
+
 
         return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
         <Response></Response>`);
