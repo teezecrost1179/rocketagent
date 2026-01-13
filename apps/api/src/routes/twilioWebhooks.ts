@@ -96,7 +96,7 @@ router.post(
 
 
         // --- B-LITE: rate limit inbound SMS per sender per hour ---
-        const MAX_SMS_PER_HOUR = 10;
+        const MAX_SMS_PER_HOUR = 12;
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
         const recentInboundCount = await prisma.interactionMessage.count({
