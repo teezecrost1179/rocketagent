@@ -424,12 +424,12 @@ router.post(
                                 const remainingAfterThis = Math.max(remainingOut - 1, 0);
 
                                 const parts: string[] = [
-                                    `Replies remaining this hour: ${remainingAfterThis}. (Try phone or web chat.)`,
+                                    `FYI, I can only respond ${remainingAfterThis} more times this session.`,
                                 ];
                                 //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
                                 //if (directToPhone) parts.push(`Call: ${directToPhone}`);
 
-                                lastAgentMsgWithPolicy += `\n\n${parts.join("\n")}`;
+                                lastAgentMsgWithPolicy += `\n${parts.join("\n")}`;
 
                                 console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
                                 }
@@ -491,12 +491,12 @@ router.post(
                     const remainingAfterThis = Math.max(remainingOut - 1, 0);
 
                     const parts: string[] = [
-                        `Replies remaining this hour: ${remainingAfterThis}. (Try phone or web chat.)`,
+                        `FYI, I can only respond ${remainingAfterThis} more times this session.`,
                     ];
                     //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
                     //if (directToPhone) parts.push(`Call: ${directToPhone}`);
 
-                    lastAgentMsgWithPolicy += `\n\n${parts.join("\n")}`;
+                    lastAgentMsgWithPolicy += `\n${parts.join("\n")}`;
 
                     console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
                     }
