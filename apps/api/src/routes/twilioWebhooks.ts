@@ -99,19 +99,6 @@ router.post(
         const MAX_SMS_PER_HOUR = 12;
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
-        const recentInboundCount = await prisma.interactionMessage.count({
-            where: {
-                role: "USER",
-                createdAt: { gte: oneHourAgo },
-                interaction: {
-                    subscriberId: smsChannel.subscriberId,
-                    channel: "SMS",
-                    fromNumberE164: From,
-                    toNumberE164: To,
-                },
-            },
-        });
-
         const outboundCount = await prisma.interactionMessage.count({
             where: {
                 role: "AGENT",
@@ -131,7 +118,7 @@ router.post(
                 subscriberId: smsChannel.subscriberId,
                 From,
                 To,
-                recentInboundCount,
+                remainingOut,
                 MAX_SMS_PER_HOUR,
             });
 
@@ -191,10 +178,10 @@ router.post(
                 subscriberId: interaction.subscriberId,
             });
         } else {
-        console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
-            interactionId: interaction.id,
-            subscriberId: interaction.subscriberId,
-        });
+            console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
+                interactionId: interaction.id,
+                subscriberId: interaction.subscriberId,
+            });
         }
 
 
@@ -209,10 +196,8 @@ router.post(
             },
         });
 
-        console.log("[Twilio SMS inbound] Created InteractionMessage", {
-            interactionId: interaction.id,
-            providerMessageId: MessageSid,
-        });
+        console.log(`Created InteractionMessage in db — interactionId=${interaction.id}, providerMessageId=${MessageSid}`);
+
 
 
         // --- A1: get AI reply from Retell (do NOT send SMS yet) ---
@@ -230,24 +215,24 @@ router.post(
             // If providerConversationId is empty OR still looks like a Twilio MessageSid ("SM...")
             if (!chatId || chatId.startsWith("SM")) {
                 const createChatResp = await fetch("https://api.retellai.com/create-chat", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${retellApiKey}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    agent_id: retellChatAgentId,
-                    metadata: {
-                    subscriberId: smsChannel.subscriberId,
-                    from: From,
-                    to: To,
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${retellApiKey}`,
+                        "Content-Type": "application/json",
                     },
-                }),
+                    body: JSON.stringify({
+                        agent_id: retellChatAgentId,
+                        metadata: {
+                        subscriberId: smsChannel.subscriberId,
+                        from: From,
+                        to: To,
+                        },
+                    }),
                 });
 
                 if (!createChatResp.ok) {
-                const text = await createChatResp.text();
-                console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
+                    const text = await createChatResp.text();
+                    console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
                 } else {
                 const created = await createChatResp.json();
                 chatId = created.chat_id;
@@ -283,7 +268,7 @@ router.post(
 
                     // Grab the last agent message (Retell returns new agent messages in `messages`)
                     const lastAgentMsg = [...(completion.messages || [])].reverse().find((m: any) => m.role === "agent")?.content;
-                    console.log("[SMS A1] Retell reply (not sent)", { chatId, reply: lastAgentMsg });
+                    console.log("[SMS A1] Retell reply (not sent to texter yet)", { chatId, reply: lastAgentMsg });
 
                     // --- A2: send AI reply back to the user via Twilio SMS ---
 
@@ -341,9 +326,6 @@ router.post(
                 }
             }
         }
-
-
-
 
         return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
         <Response></Response>`);
