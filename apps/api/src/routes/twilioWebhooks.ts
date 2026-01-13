@@ -40,6 +40,71 @@ async function buildRecoveryContext({
 
   return context;
 }
+//END DB context history function buildRecoveryContext
+
+//BUILD THE SEND SMS AND PERSIST chunk as a function
+async function sendSmsAndPersist({
+  toUserNumber,
+  fromTwilioNumber,
+  body,
+  interactionId,
+  rid,
+}: {
+  toUserNumber: string;
+  fromTwilioNumber: string;
+  body: string;
+  interactionId: string;
+  rid: string;
+}) {
+  const twilioClient = Twilio(
+    process.env.TWILIO_ACCOUNT_SID!,
+    process.env.TWILIO_AUTH_TOKEN!
+  );
+
+  const outboundMessage = await twilioClient.messages.create({
+    from: fromTwilioNumber,
+    to: toUserNumber,
+    body,
+  });
+
+  console.log(`[${rid}] Sent SMS reply`, { messageSid: outboundMessage.sid });
+
+  await prisma.interactionMessage.create({
+    data: {
+      interactionId,
+      role: "AGENT",
+      content: body,
+      providerMessageId: outboundMessage.sid,
+    },
+  });
+
+  return outboundMessage.sid;
+}
+//END  SEND SMS AND PERSIST  function, sendSmsAndPersist
+
+//reBuild outbody body with SMS LIMIT POLICY
+function applySmsPolicy({
+  agentReply,
+  remainingOut,
+  rid,
+  outboundCount,
+}: {
+  agentReply: string | null | undefined;
+  remainingOut: number;
+  rid: string;
+  outboundCount: number;
+}) {
+  let body = agentReply || "Okay — how can I help?";
+
+  if (remainingOut <= 3) {
+    const remainingAfterThis = Math.max(remainingOut - 1, 0);
+    body += `\nFYI, I can only respond ${remainingAfterThis} more times this session.`;
+    console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
+  }
+
+  return body;
+}
+//end applySmsPolicy function
 
 
 
@@ -455,58 +520,19 @@ router.post(
                                 // IMPORTANT: set chatId to the new one so any downstream logs/use are consistent
                                 chatId = newChatId;
 
-                                // --- A2: send AI reply back to the user via Twilio SMS ---
-
-                                // Create a Twilio REST client using credentials from env vars.
-                                const twilioClient = Twilio(
-                                process.env.TWILIO_ACCOUNT_SID!,
-                                process.env.TWILIO_AUTH_TOKEN!
-                                );
-
-                                // If they’re nearing the cap, append a brief FYI
-                                let lastAgentMsgWithPolicy = lastAgentMsg || "Okay — how can I help?";
-                                const directToWebsite = subscriber?.websiteUrl;
-                                const directToPhone = subscriber?.publicPhoneE164;
-
-                                if (remainingOut <= 3) {
-                                    const remainingAfterThis = Math.max(remainingOut - 1, 0);
-
-                                    const parts: string[] = [
-                                        `FYI, I can only respond ${remainingAfterThis} more times this session.`,
-                                    ];
-                                    //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
-                                    //if (directToPhone) parts.push(`Call: ${directToPhone}`);
-
-                                    lastAgentMsgWithPolicy += `\n${parts.join("\n")}`;
-
-                                    console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
-                                }
-
-                                // Send the AI-generated reply as an outbound SMS.
-                                // IMPORTANT:
-                                // - "from" must be YOUR Twilio number (the number that received the SMS)
-                                // - "to" must be the original sender (the user)
-                                const outboundMessage = await twilioClient.messages.create({
-                                from: To,     // Twilio number
-                                to: From,     // End user who texted in
-                                body: lastAgentMsgWithPolicy,
+                                const bodyToSend = applySmsPolicy({
+                                    agentReply: lastAgentMsg,
+                                    remainingOut,
+                                    rid,
+                                    outboundCount,
                                 });
-
-                                // Log success so we can see outbound behavior clearly
-                                console.log(
-                                `Sent SMS reply (remaining in limits b4 this send: ${remainingOut})`,
-                                { messageSid: outboundMessage.sid }
-                                );
-
-                                // Persist the outbound assistant message so the full conversation
-                                // (USER + ASSISTANT) exists in the database.
-                                await prisma.interactionMessage.create({
-                                data: {
+                                //**Send Twilio and Persist ****
+                                await sendSmsAndPersist({
+                                    toUserNumber: From,
+                                    fromTwilioNumber: To,
+                                    body: bodyToSend,
                                     interactionId: interaction.id,
-                                    role: "AGENT",              // This message is from the system/AI
-                                    content: lastAgentMsgWithPolicy, // What we sent to the user
-                                    providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
-                                },
+                                    rid,
                                 });
 
                             }
@@ -522,58 +548,19 @@ router.post(
 
                     console.log("[SMS A1] Retell reply (not sent to texter yet)", { chatId, reply: lastAgentMsg });
 
-                    // --- A2: send AI reply back to the user via Twilio SMS ---
-
-                    // Create a Twilio REST client using credentials from env vars.
-                    const twilioClient = Twilio(
-                    process.env.TWILIO_ACCOUNT_SID!,
-                    process.env.TWILIO_AUTH_TOKEN!
-                    );
-
-                    // If they’re nearing the cap, append a brief FYI
-                    let lastAgentMsgWithPolicy = lastAgentMsg || "Okay — how can I help?";
-                    const directToWebsite = subscriber?.websiteUrl;
-                    const directToPhone = subscriber?.publicPhoneE164;
-
-                    if (remainingOut <= 3) {
-                    const remainingAfterThis = Math.max(remainingOut - 1, 0);
-
-                    const parts: string[] = [
-                        `FYI, I can only respond ${remainingAfterThis} more times this session.`,
-                    ];
-                    //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
-                    //if (directToPhone) parts.push(`Call: ${directToPhone}`);
-
-                    lastAgentMsgWithPolicy += `\n${parts.join("\n")}`;
-
-                    console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
-                    }
-
-                    // Send the AI-generated reply as an outbound SMS.
-                    // IMPORTANT:
-                    // - "from" must be YOUR Twilio number (the number that received the SMS)
-                    // - "to" must be the original sender (the user)
-                    const outboundMessage = await twilioClient.messages.create({
-                    from: To,     // Twilio number
-                    to: From,     // End user who texted in
-                    body: lastAgentMsgWithPolicy,
+                    const bodyToSend = applySmsPolicy({
+                        agentReply: lastAgentMsg,
+                        remainingOut,
+                        rid,
+                        outboundCount,
                     });
-
-                    // Log success so we can see outbound behavior clearly
-                    console.log(
-                    `Sent SMS reply (remaining in limits b4 this send: ${remainingOut})`,
-                    { messageSid: outboundMessage.sid }
-                    );
-
-                    // Persist the outbound assistant message so the full conversation
-                    // (USER + ASSISTANT) exists in the database.
-                    await prisma.interactionMessage.create({
-                    data: {
+                    //**Send Twilio and Persist ****
+                    await sendSmsAndPersist({
+                        toUserNumber: From,
+                        fromTwilioNumber: To,
+                        body: bodyToSend,
                         interactionId: interaction.id,
-                        role: "AGENT",              // This message is from the system/AI
-                        content: lastAgentMsgWithPolicy, // What we sent to the user
-                        providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
-                    },
+                        rid,
                     });
     
 
