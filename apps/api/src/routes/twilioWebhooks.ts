@@ -424,11 +424,10 @@ router.post(
                                 const remainingAfterThis = Math.max(remainingOut - 1, 0);
 
                                 const parts: string[] = [
-                                    `FYI: SMS limits apply — I can reply ${remainingAfterThis} more time${remainingAfterThis === 1 ? "" : "s"} this hour.`,
+                                    `SMS limits: I can reply ${remainingAfterThis} more time${remainingAfterThis === 1 ? "" : "s"} this hour.`,
                                 ];
-
-                                if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
-                                if (directToPhone) parts.push(`Call: ${directToPhone}`);
+                                //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
+                                //if (directToPhone) parts.push(`Call: ${directToPhone}`);
 
                                 lastAgentMsgWithPolicy += `\n\n${parts.join("\n")}`;
 
