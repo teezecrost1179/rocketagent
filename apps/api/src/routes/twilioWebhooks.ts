@@ -321,7 +321,10 @@ router.post(
                     });
 
                     // Log success so we can see outbound behavior clearly
-                    console.log("[SMS A2] Sent SMS reply", { messageSid: outboundMessage.sid, });
+                    console.log(
+                        `Sent SMS reply (remaining in limits b4 this send: ${remainingOut})`,
+                        { messageSid: outboundMessage.sid }
+                    );
 
                     // Persist the outbound assistant message so the full conversation
                     // (USER + ASSISTANT) exists in the database.
