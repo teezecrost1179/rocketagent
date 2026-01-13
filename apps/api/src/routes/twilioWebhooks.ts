@@ -122,7 +122,7 @@ router.post(
                 },
             },
         });
-        const remainingOut = MAX_SMS_OUT_PER_HOUR - outboundCount;
+        const remainingOut = MAX_SMS_PER_HOUR - outboundCount;
 
         if (recentInboundCount >= MAX_SMS_PER_HOUR) {
             console.warn("[Twilio SMS inbound] Rate limit hit — ignoring message", {
