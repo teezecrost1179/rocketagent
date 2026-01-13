@@ -253,6 +253,57 @@ router.post(
 
             if (chatId) {
 
+                // --- DEV TEST HOOK: if user texts "endchat", end the Retell chat session ---
+                // This is purely for testing your recovery logic. We wait until chatId exists.
+                const normalizedBody = (Body || "").trim().toLowerCase();
+
+                if (normalizedBody === "endchat") {
+                // 1) Tell the texter we ended it (so the test is obvious)
+                const twilioClient = Twilio(
+                    process.env.TWILIO_ACCOUNT_SID!,
+                    process.env.TWILIO_AUTH_TOKEN!
+                );
+
+                const endedReply = "Ended.";
+
+                const outboundMessage = await twilioClient.messages.create({
+                    from: To,
+                    to: From,
+                    body: endedReply,
+                });
+
+                // Persist the outbound message
+                await prisma.interactionMessage.create({
+                    data: {
+                    interactionId: interaction.id,
+                    role: "AGENT",
+                    content: endedReply,
+                    providerMessageId: outboundMessage.sid,
+                    },
+                });
+
+                // 2) End the Retell chat session (so the next message triggers your recovery path)
+                const endResp = await fetch(`https://api.retellai.com/end-chat/${chatId}`, {
+                    method: "PATCH",
+                    headers: {
+                    Authorization: `Bearer ${retellApiKey}`,
+                    "Content-Type": "application/json",
+                    },
+                });
+
+                if (!endResp.ok) {
+                    console.error("[SMS A1] Retell end-chat failed", endResp.status, await endResp.text());
+                } else {
+                    console.log("[SMS A1] Retell chat ended via 'endchat' command", { chatId });
+                }
+
+                // 3) Stop processing: don't call create-chat-completion for this inbound message
+                return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+                <Response></Response>`);
+                }
+                // END IF *ENDCHAT***
+
+
                 // --- Call Retell for the next reply in this chat ---
                 const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
                     method: "POST",
