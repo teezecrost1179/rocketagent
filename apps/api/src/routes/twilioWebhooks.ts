@@ -109,7 +109,20 @@ router.post(
                 },
             },
         });
-        const remainingInSmsLimit = MAX_SMS_PER_HOUR - recentInboundCount;
+
+        const outboundCount = await prisma.interactionMessage.count({
+            where: {
+                role: "AGENT",
+                createdAt: { gte: oneHourAgo },
+                interaction: {
+                subscriberId: smsChannel.subscriberId,
+                channel: "SMS",
+                fromNumberE164: From,
+                toNumberE164: To,
+                },
+            },
+        });
+        const remainingOut = MAX_SMS_OUT_PER_HOUR - outboundCount;
 
         if (recentInboundCount >= MAX_SMS_PER_HOUR) {
             console.warn("[Twilio SMS inbound] Rate limit hit — ignoring message", {
@@ -279,19 +292,21 @@ router.post(
                     );
 
                     // If they’re nearing the cap, append a brief FYI
-                    let lastAgentMsgWithPolicy =lastAgentMsg;
+                    let lastAgentMsgWithPolicy = lastAgentMsg || "Okay — how can I help?";
                     const directToWebsite = subscriber?.websiteUrl;
                     const directToPhone = subscriber?.publicPhoneE164;
-                    if (remainingInSmsLimit <= 2) {
+                    if (remainingOut <= 2) {
                         
                         const parts: string[] = [
-                            `FYI: SMS limits apply — I can reply ${remainingInSmsLimit} more time${remainingInSmsLimit === 1 ? "" : "s"} this hour.`,
+                            `FYI: SMS limits apply — I can reply ${remainingOut} more time${remainingOut === 1 ? "" : "s"} this hour.`,
                         ];
 
                         if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}\n`);
                         if (directToPhone) parts.push(`Call: ${directToPhone}\n`);
 
                         lastAgentMsgWithPolicy += `\n\n${parts.join(" ")}`;
+                        console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
+
                     }
 
                     // Send the AI-generated reply as an outbound SMS.
