@@ -48,6 +48,8 @@ router.post(
     <Response></Response>`);
         }
     }
+    // Request / log correlation id
+    const rid = MessageSid || "no-message-sid";
 
 
     // --- STEP 2: resolve subscriber channel from "To" number (safe) ---
