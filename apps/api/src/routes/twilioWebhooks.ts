@@ -173,14 +173,18 @@ router.post(
                 },
             });
 
-            console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
+            console.log("[Twilio SMS inbound] CREATED SMS thread Interaction", {
                 interactionId: interaction.id,
                 subscriberId: interaction.subscriberId,
+                sentInLastHour: outboundCount,
+                remainingForTheHour: remainingOut,
             });
         } else {
-            console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
+            console.log("[Twilio SMS inbound] REUSED SMS thread Interaction", {
                 interactionId: interaction.id,
                 subscriberId: interaction.subscriberId,
+                sentInLastHour: outboundCount,
+                remainingForTheHour: remainingOut
             });
         }
 
