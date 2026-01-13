@@ -442,7 +442,6 @@ router.post(
                             } else {
                                 // ✅ From here on, treat retry completion exactly like the normal success path:
                                 const completion = await retryResp.json();
-
                                 const lastAgentMsg = [...(completion.messages || [])]
                                 .reverse()
                                 .find((m: any) => m.role === "agent")?.content;
@@ -450,6 +449,7 @@ router.post(
                                 console.log("[SMS A1] Retell reply after recovery (not sent yet)", {
                                 chatId: newChatId,
                                 reply: lastAgentMsg,
+                                recoverPrompt: recoveryPrompt,
                                 });
 
                                 // IMPORTANT: set chatId to the new one so any downstream logs/use are consistent
@@ -469,17 +469,17 @@ router.post(
                                 const directToPhone = subscriber?.publicPhoneE164;
 
                                 if (remainingOut <= 3) {
-                                const remainingAfterThis = Math.max(remainingOut - 1, 0);
+                                    const remainingAfterThis = Math.max(remainingOut - 1, 0);
 
-                                const parts: string[] = [
-                                    `FYI, I can only respond ${remainingAfterThis} more times this session.`,
-                                ];
-                                //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
-                                //if (directToPhone) parts.push(`Call: ${directToPhone}`);
+                                    const parts: string[] = [
+                                        `FYI, I can only respond ${remainingAfterThis} more times this session.`,
+                                    ];
+                                    //if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
+                                    //if (directToPhone) parts.push(`Call: ${directToPhone}`);
 
-                                lastAgentMsgWithPolicy += `\n${parts.join("\n")}`;
+                                    lastAgentMsgWithPolicy += `\n${parts.join("\n")}`;
 
-                                console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
+                                    console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
                                 }
 
                                 // Send the AI-generated reply as an outbound SMS.
