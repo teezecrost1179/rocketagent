@@ -5,6 +5,44 @@ import Twilio from "twilio";
 
 const router = Router();
 
+// Build a compact SMS-friendly conversation context from ***DB history***.
+// Only used when we have to recover from an ended Retell chat.
+async function buildRecoveryContext({
+  interactionId,
+  maxMessages = 10,
+  maxChars = 1400,
+}: {
+  interactionId: string;
+  maxMessages?: number;
+  maxChars?: number;
+}) {
+  const msgs = await prisma.interactionMessage.findMany({
+    where: { interactionId },
+    orderBy: { createdAt: "asc" },
+    select: { role: true, content: true },
+  });
+
+  // Use only the last N messages to keep context tight
+  const tail = msgs.slice(-maxMessages);
+
+  const lines = tail.map((m) => {
+    const who = m.role === "USER" ? "User" : "Agent";
+    const text = (m.content || "").replace(/\s+/g, " ").trim();
+    return `${who}: ${text}`;
+  });
+
+  let context = lines.join("\n");
+
+  // Hard cap to avoid huge prompts
+  if (context.length > maxChars) {
+    context = context.slice(context.length - maxChars);
+  }
+
+  return context;
+}
+
+
+
 /**
  * Twilio sends inbound SMS as application/x-www-form-urlencoded by default.
  * This route just ACKs receipt (no auto-reply), and logs payload for now.
@@ -375,6 +413,16 @@ router.post(
                                 interactionId: interaction.id,
                             });
 
+                            
+                            // first build recovery prompt for a completion re-try
+                            const history = await buildRecoveryContext({
+                                interactionId: interaction.id,
+                            });
+                            const recoveryPrompt =
+                                `Context (most recent messages):\n${history}\n\n` +
+                                `Instruction: Do not repeat the context. Reply naturally and briefly to the latest user message.\n\n` +
+                                `Latest user message: ${(Body || "").trim()}`;
+
                             // 3) Retry the completion one time using the new chat_id
                             const retryResp = await fetch("https://api.retellai.com/create-chat-completion", {
                                 method: "POST",
@@ -384,7 +432,7 @@ router.post(
                                 },
                                 body: JSON.stringify({
                                 chat_id: newChatId,
-                                content: Body || "",
+                                content: recoveryPrompt,
                                 }),
                             });
 
