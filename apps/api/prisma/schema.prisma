@@ -69,6 +69,10 @@ model Subscriber {
   // Status / lifecycle
   status String @default("active")
 
+  // Public-facing contact info (used in SMS warnings, etc.)
+  websiteUrl      String?
+  publicPhoneE164 String?
+
   // Widget configuration (this replaces widgetConfig.ts)
   widgetTitle       String?
   widgetSubtitle    String?

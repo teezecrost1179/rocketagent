@@ -85,6 +85,13 @@ router.post(
             subscriberId: smsChannel.subscriberId,
         });
 
+        // Pull public contact info for warning messages (website + phone)
+        const subscriber = await prisma.subscriber.findUnique({
+            where: { id: smsChannel.subscriberId },
+            select: { websiteUrl: true, publicPhoneE164: true },
+        });
+
+
 
         // --- B-LITE: rate limit inbound SMS per sender per hour ---
         const MAX_SMS_PER_HOUR = 10;
@@ -102,6 +109,7 @@ router.post(
                 },
             },
         });
+        const remainingInSmsLimit = MAX_SMS_PER_HOUR - recentInboundCount;
 
         if (recentInboundCount >= MAX_SMS_PER_HOUR) {
             console.warn("[Twilio SMS inbound] Rate limit hit — ignoring message", {
@@ -266,9 +274,25 @@ router.post(
 
                     // Create a Twilio REST client using credentials from env vars.
                     const twilioClient = Twilio(
-                    process.env.TWILIO_ACCOUNT_SID!,
-                    process.env.TWILIO_AUTH_TOKEN!
+                        process.env.TWILIO_ACCOUNT_SID!,
+                        process.env.TWILIO_AUTH_TOKEN!
                     );
+
+                    // If they’re nearing the cap, append a brief FYI
+                    let lastAgentMsgWithPolicy =lastAgentMsg;
+                    const directToWebsite = subscriber?.websiteUrl;
+                    const directToPhone = subscriber?.publicPhoneE164;
+                    if (remainingInSmsLimit <= 2) {
+                        
+                        const parts: string[] = [
+                            `FYI: SMS limits apply — I can reply ${remainingInSmsLimit} more time${remainingInSmsLimit === 1 ? "" : "s"} this hour.`,
+                        ];
+
+                        if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}\n`);
+                        if (directToPhone) parts.push(`Call: ${directToPhone}\n`);
+
+                        lastAgentMsgWithPolicy += `\n\n${parts.join(" ")}`;
+                    }
 
                     // Send the AI-generated reply as an outbound SMS.
                     // IMPORTANT:
@@ -277,7 +301,7 @@ router.post(
                     const outboundMessage = await twilioClient.messages.create({
                         from: To,     // Twilio number
                         to: From,     // End user who texted in
-                        body: lastAgentMsg,  // AI-generated text from Retell
+                        body: lastAgentMsgWithPolicy,  // AI-generated text from Retell
                     });
 
                     // Log success so we can see outbound behavior clearly
@@ -289,7 +313,7 @@ router.post(
                         data: {
                             interactionId: interaction.id,
                             role: "AGENT",              // This message is from the system/AI
-                            content: lastAgentMsg,                 // What we sent to the user
+                            content: lastAgentMsgWithPolicy,                 // What we sent to the user
                             providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
                         },
                     });

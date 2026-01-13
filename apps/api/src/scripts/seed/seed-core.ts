@@ -13,6 +13,8 @@ export type SeedSubscriberInput = {
   widgetGreeting?: string;
   widgetAvatarUrl?: string | null;
   offlineMessage?: string | null;
+  websiteUrl?: string;
+  publicPhoneE164?: string;
 };
 
 // Core helper: idempotent + safe to re-run
@@ -28,6 +30,8 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     widgetGreeting,
     widgetAvatarUrl,
     offlineMessage,
+    websiteUrl,
+    publicPhoneE164,
   } = input;
 
   // IMPORTANT: leaving undefined fields is OK; Prisma will ignore them.
@@ -42,6 +46,9 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     widgetGreeting,
     widgetAvatarUrl,
     offlineMessage,
+    websiteUrl,
+    publicPhoneE164,
+
   };
 
   await prisma.subscriber.upsert({
@@ -64,6 +71,8 @@ async function main() {
     widgetSubtitle: "Web, Shopify, and branding help",
     widgetGreeting: "Hi! How can we help today?",
     widgetEnabled: true,
+    websiteUrl: "https://rocketsciencedesigns.com",
+    publicPhoneE164: "+12048082733",
   });
 
   // Demo gatekeeper (owns the demo Twilio number)
@@ -76,6 +85,8 @@ async function main() {
     widgetSubtitle: "We will take it from here.",
     widgetGreeting: "Hi! Which demo business would you like to reach today?",
     widgetEnabled: true,
+    websiteUrl: "https://rocketreception.ca",
+    publicPhoneE164: "+14316005505",
   });
 
   console.log("Core seed complete.");
