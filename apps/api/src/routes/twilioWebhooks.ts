@@ -1,5 +1,7 @@
 import { prisma } from "../lib/prisma"; // <-- adjust path if needed
 import { Router } from "express";
+import Twilio from "twilio";
+
 
 const router = Router();
 
@@ -199,70 +201,102 @@ router.post(
         } else if (!retellChatAgentId) {
         console.error("[SMS A1] Missing Retell chat agent id (smsChannel.providerInboxId)");
         } else {
-        // Reuse chat_id if we already created one for this Interaction thread
-        let chatId = interaction.providerConversationId;
+            // Reuse chat_id if we already created one for this Interaction thread
+            let chatId = interaction.providerConversationId;
 
-        // If providerConversationId is empty OR still looks like a Twilio MessageSid ("SM...")
-        if (!chatId || chatId.startsWith("SM")) {
-            const createChatResp = await fetch("https://api.retellai.com/create-chat", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${retellApiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                agent_id: retellChatAgentId,
-                metadata: {
-                subscriberId: smsChannel.subscriberId,
-                from: From,
-                to: To,
+            // If providerConversationId is empty OR still looks like a Twilio MessageSid ("SM...")
+            if (!chatId || chatId.startsWith("SM")) {
+                const createChatResp = await fetch("https://api.retellai.com/create-chat", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${retellApiKey}`,
+                    "Content-Type": "application/json",
                 },
-            }),
-            });
+                body: JSON.stringify({
+                    agent_id: retellChatAgentId,
+                    metadata: {
+                    subscriberId: smsChannel.subscriberId,
+                    from: From,
+                    to: To,
+                    },
+                }),
+                });
 
-            if (!createChatResp.ok) {
-            const text = await createChatResp.text();
-            console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
-            } else {
-            const created = await createChatResp.json();
-            chatId = created.chat_id;
+                if (!createChatResp.ok) {
+                const text = await createChatResp.text();
+                console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
+                } else {
+                const created = await createChatResp.json();
+                chatId = created.chat_id;
 
-            // Save chat_id so future SMS in this thread keeps context
-            await prisma.interaction.update({
-                where: { id: interaction.id },
-                data: { providerConversationId: chatId },
-            });
+                // Save chat_id so future SMS in this thread keeps context
+                await prisma.interaction.update({
+                    where: { id: interaction.id },
+                    data: { providerConversationId: chatId },
+                });
 
-            console.log("[SMS A1] Created Retell chat", { chatId });
+                console.log("[SMS A1] Created Retell chat", { chatId });
+                }
             }
-        }
 
-        if (chatId) {
-            const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${retellApiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                chat_id: chatId,
-                content: Body || "",
-            }),
-            });
+            if (chatId) {
+                const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${retellApiKey}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    content: Body || "",
+                }),
+                });
 
-            if (!completionResp.ok) {
-            const text = await completionResp.text();
-            console.error("[SMS A1] Retell create-chat-completion failed", completionResp.status, text);
-            } else {
-            const completion = await completionResp.json();
+                if (!completionResp.ok) {
+                const text = await completionResp.text();
+                console.error("[SMS A1] Retell create-chat-completion failed", completionResp.status, text);
+                } else {
+                    const  completion = await completionResp.json();
 
-            // Grab the last agent message (Retell returns new agent messages in `messages`)
-            const lastAgentMsg =
-                [...(completion.messages || [])].reverse().find((m: any) => m.role === "agent")?.content;
+                    // Grab the last agent message (Retell returns new agent messages in `messages`)
+                    const lastAgentMsg = [...(completion.messages || [])].reverse().find((m: any) => m.role === "agent")?.content;
+                    console.log("[SMS A1] Retell reply (not sent)", { chatId, reply: lastAgentMsg });
 
-            console.log("[SMS A1] Retell reply (not sent)", { chatId, reply: lastAgentMsg });
+                    // --- A2: send AI reply back to the user via Twilio SMS ---
+
+                    // Create a Twilio REST client using credentials from env vars.
+                    const twilioClient = Twilio(
+                    process.env.TWILIO_ACCOUNT_SID!,
+                    process.env.TWILIO_AUTH_TOKEN!
+                    );
+
+                    // Send the AI-generated reply as an outbound SMS.
+                    // IMPORTANT:
+                    // - "from" must be YOUR Twilio number (the number that received the SMS)
+                    // - "to" must be the original sender (the user)
+                    const outboundMessage = await twilioClient.messages.create({
+                        from: To,     // Twilio number
+                        to: From,     // End user who texted in
+                        body: lastAgentMsg,  // AI-generated text from Retell
+                    });
+
+                    // Log success so we can see outbound behavior clearly
+                    console.log("[SMS A2] Sent SMS reply", { messageSid: outboundMessage.sid, });
+
+                    // Persist the outbound assistant message so the full conversation
+                    // (USER + ASSISTANT) exists in the database.
+                    await prisma.interactionMessage.create({
+                        data: {
+                            interactionId: interaction.id,
+                            role: "AGENT",              // This message is from the system/AI
+                            content: lastAgentMsg,                 // What we sent to the user
+                            providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
+                        },
+                    });
+
+
+                }
             }
-        }
         }
 
 
