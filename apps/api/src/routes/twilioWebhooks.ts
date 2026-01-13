@@ -238,65 +238,218 @@ router.post(
                     const text = await createChatResp.text();
                     console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
                 } else {
-                const created = await createChatResp.json();
-                chatId = created.chat_id;
+                    const created = await createChatResp.json();
+                    chatId = created.chat_id;
 
-                // Save chat_id so future SMS in this thread keeps context
-                await prisma.interaction.update({
-                    where: { id: interaction.id },
-                    data: { providerConversationId: chatId },
-                });
+                    // Save chat_id so future SMS in this thread keeps context
+                    await prisma.interaction.update({
+                        where: { id: interaction.id },
+                        data: { providerConversationId: chatId },
+                    });
 
-                console.log("[SMS A1] Created Retell chat", { chatId });
+                    console.log("[SMS A1] Created Retell chat", { chatId });
                 }
             }
 
             if (chatId) {
+
+                // --- Call Retell for the next reply in this chat ---
                 const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${retellApiKey}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    content: Body || "",
-                }),
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${retellApiKey}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        content: Body || "",
+                    }),
                 });
 
                 if (!completionResp.ok) {
-                const text = await completionResp.text();
-                console.error("[SMS A1] Retell create-chat-completion failed", completionResp.status, text);
-                } else {
-                    const  completion = await completionResp.json();
+                    // If Retell returns an error, we read the body as text so we can inspect it.
+                    const text = await completionResp.text();
 
-                    // Grab the last agent message (Retell returns new agent messages in `messages`)
-                    const lastAgentMsg = [...(completion.messages || [])].reverse().find((m: any) => m.role === "agent")?.content;
+                    // Special case: Retell is telling us the chat session is closed and cannot continue.
+                    // In this case, we do NOT create a new Interaction thread in our DB.
+                    // We simply create a new Retell chat_id, store it on the same Interaction,
+                    // then retry the completion ONE time.
+                    const isChatEnded =
+                        completionResp.status === 400 && text.toLowerCase().includes("chat already ended");
+                    if (!isChatEnded) {
+                        console.error("[SMS A1] Retell create-chat-completion failed", completionResp.status, text);
+                    } else {
+                        console.warn("[SMS A1] Retell chat ended. Creating a new chat and retrying once.", {
+                        oldChatId: chatId,
+                        interactionId: interaction.id,
+                        });
+
+                        // 1) Create a NEW Retell chat session
+                        const createChatResp2 = await fetch("https://api.retellai.com/create-chat", {
+                            method: "POST",
+                            headers: {
+                                Authorization: `Bearer ${retellApiKey}`,
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({
+                                agent_id: retellChatAgentId,
+                                metadata: {
+                                subscriberId: smsChannel.subscriberId,
+                                from: From,
+                                to: To,
+                                // (Optional) helps you debug which Interaction this new chat was created for
+                                interactionId: interaction.id,
+                                reason: "recovered_from_chat_ended",
+                                },
+                            }),
+                        });
+
+                        if (!createChatResp2.ok) {
+                            const t2 = await createChatResp2.text();
+                            console.error("[SMS A1] Retell create-chat failed during recovery", createChatResp2.status, t2);
+                        } else {
+                            const created2 = await createChatResp2.json();
+                            const newChatId = created2.chat_id as string;
+
+                            // 2) Update the SAME Interaction to point at the new Retell chat_id.
+                            // This preserves your 24-hour SMS thread and your DB conversation history.
+                            await prisma.interaction.update({
+                                where: { id: interaction.id },
+                                data: { providerConversationId: newChatId },
+                            });
+
+                            console.log("[SMS A1] RECOVERY created new Retell chat due to ended chat", {
+                                oldChatId: chatId,
+                                newChatId,
+                                interactionId: interaction.id,
+                            });
+
+                            // 3) Retry the completion one time using the new chat_id
+                            const retryResp = await fetch("https://api.retellai.com/create-chat-completion", {
+                                method: "POST",
+                                headers: {
+                                Authorization: `Bearer ${retellApiKey}`,
+                                "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify({
+                                chat_id: newChatId,
+                                content: Body || "",
+                                }),
+                            });
+
+                            if (!retryResp.ok) {
+                                const t3 = await retryResp.text();
+                                console.error("[SMS A1] Retell retry create-chat-completion failed", retryResp.status, t3);
+                            } else {
+                                // ✅ From here on, treat retry completion exactly like the normal success path:
+                                const completion = await retryResp.json();
+
+                                const lastAgentMsg = [...(completion.messages || [])]
+                                .reverse()
+                                .find((m: any) => m.role === "agent")?.content;
+
+                                console.log("[SMS A1] Retell reply after recovery (not sent yet)", {
+                                chatId: newChatId,
+                                reply: lastAgentMsg,
+                                });
+
+                                // IMPORTANT: set chatId to the new one so any downstream logs/use are consistent
+                                chatId = newChatId;
+
+                                // --- A2: send AI reply back to the user via Twilio SMS ---
+
+                                // Create a Twilio REST client using credentials from env vars.
+                                const twilioClient = Twilio(
+                                process.env.TWILIO_ACCOUNT_SID!,
+                                process.env.TWILIO_AUTH_TOKEN!
+                                );
+
+                                // If they’re nearing the cap, append a brief FYI
+                                let lastAgentMsgWithPolicy = lastAgentMsg || "Okay — how can I help?";
+                                const directToWebsite = subscriber?.websiteUrl;
+                                const directToPhone = subscriber?.publicPhoneE164;
+
+                                if (remainingOut <= 3) {
+                                const remainingAfterThis = Math.max(remainingOut - 1, 0);
+
+                                const parts: string[] = [
+                                    `FYI: SMS limits apply — I can reply ${remainingAfterThis} more time${remainingAfterThis === 1 ? "" : "s"} this hour.`,
+                                ];
+
+                                if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
+                                if (directToPhone) parts.push(`Call: ${directToPhone}`);
+
+                                lastAgentMsgWithPolicy += `\n\n${parts.join("\n")}`;
+
+                                console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
+                                }
+
+                                // Send the AI-generated reply as an outbound SMS.
+                                // IMPORTANT:
+                                // - "from" must be YOUR Twilio number (the number that received the SMS)
+                                // - "to" must be the original sender (the user)
+                                const outboundMessage = await twilioClient.messages.create({
+                                from: To,     // Twilio number
+                                to: From,     // End user who texted in
+                                body: lastAgentMsgWithPolicy,
+                                });
+
+                                // Log success so we can see outbound behavior clearly
+                                console.log(
+                                `Sent SMS reply (remaining in limits b4 this send: ${remainingOut})`,
+                                { messageSid: outboundMessage.sid }
+                                );
+
+                                // Persist the outbound assistant message so the full conversation
+                                // (USER + ASSISTANT) exists in the database.
+                                await prisma.interactionMessage.create({
+                                data: {
+                                    interactionId: interaction.id,
+                                    role: "AGENT",              // This message is from the system/AI
+                                    content: lastAgentMsgWithPolicy, // What we sent to the user
+                                    providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
+                                },
+                                });
+
+                            }
+                        }
+                    }
+                } else {
+                    // ✅ Normal success path: Retell returned a completion for the current chat_id
+                    const completion = await completionResp.json();
+
+                    const lastAgentMsg = [...(completion.messages || [])]
+                        .reverse()
+                        .find((m: any) => m.role === "agent")?.content;
+
                     console.log("[SMS A1] Retell reply (not sent to texter yet)", { chatId, reply: lastAgentMsg });
 
                     // --- A2: send AI reply back to the user via Twilio SMS ---
 
                     // Create a Twilio REST client using credentials from env vars.
                     const twilioClient = Twilio(
-                        process.env.TWILIO_ACCOUNT_SID!,
-                        process.env.TWILIO_AUTH_TOKEN!
+                    process.env.TWILIO_ACCOUNT_SID!,
+                    process.env.TWILIO_AUTH_TOKEN!
                     );
 
                     // If they’re nearing the cap, append a brief FYI
                     let lastAgentMsgWithPolicy = lastAgentMsg || "Okay — how can I help?";
                     const directToWebsite = subscriber?.websiteUrl;
                     const directToPhone = subscriber?.publicPhoneE164;
+
                     if (remainingOut <= 3) {
-                        
-                        const parts: string[] = [
-                            `FYI: SMS limits apply — I can reply ${Math.max(remainingOut - 1, 0)} more time${Math.max(remainingOut - 1, 0) === 1 ? "" : "s"} this hour.`,
-                        ];
-                        if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}\n`);
-                        if (directToPhone) parts.push(`Call: ${directToPhone}\n`);
+                    const remainingAfterThis = Math.max(remainingOut - 1, 0);
 
-                        lastAgentMsgWithPolicy += `\n\n${parts.join(" ")}`;
-                        console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
+                    const parts: string[] = [
+                        `FYI: SMS limits apply — I can reply ${remainingAfterThis} more time${remainingAfterThis === 1 ? "" : "s"} this hour.`,
+                    ];
 
+                    if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}`);
+                    if (directToPhone) parts.push(`Call: ${directToPhone}`);
+
+                    lastAgentMsgWithPolicy += `\n\n${parts.join("\n")}`;
+
+                    console.log(`[${rid}] [SMS limit] outboundCount=${outboundCount} remainingOut=${remainingOut}`);
                     }
 
                     // Send the AI-generated reply as an outbound SMS.
@@ -304,30 +457,32 @@ router.post(
                     // - "from" must be YOUR Twilio number (the number that received the SMS)
                     // - "to" must be the original sender (the user)
                     const outboundMessage = await twilioClient.messages.create({
-                        from: To,     // Twilio number
-                        to: From,     // End user who texted in
-                        body: lastAgentMsgWithPolicy,  // AI-generated text from Retell
+                    from: To,     // Twilio number
+                    to: From,     // End user who texted in
+                    body: lastAgentMsgWithPolicy,
                     });
 
                     // Log success so we can see outbound behavior clearly
                     console.log(
-                        `Sent SMS reply (remaining in limits b4 this send: ${remainingOut})`,
-                        { messageSid: outboundMessage.sid }
+                    `Sent SMS reply (remaining in limits b4 this send: ${remainingOut})`,
+                    { messageSid: outboundMessage.sid }
                     );
 
                     // Persist the outbound assistant message so the full conversation
                     // (USER + ASSISTANT) exists in the database.
                     await prisma.interactionMessage.create({
-                        data: {
-                            interactionId: interaction.id,
-                            role: "AGENT",              // This message is from the system/AI
-                            content: lastAgentMsgWithPolicy,                 // What we sent to the user
-                            providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
-                        },
+                    data: {
+                        interactionId: interaction.id,
+                        role: "AGENT",              // This message is from the system/AI
+                        content: lastAgentMsgWithPolicy, // What we sent to the user
+                        providerMessageId: outboundMessage.sid, // Twilio SID for idempotency/debugging
+                    },
                     });
+    
 
 
                 }
+
             }
         }
 
