@@ -126,7 +126,7 @@ router.post(
         });
         const remainingOut = MAX_SMS_PER_HOUR - outboundCount;
 
-        if (recentInboundCount >= MAX_SMS_PER_HOUR) {
+        if (remainingOut < 1) {
             console.warn("[Twilio SMS inbound] Rate limit hit — ignoring message", {
                 subscriberId: smsChannel.subscriberId,
                 From,
@@ -168,28 +168,28 @@ router.post(
         });
 
         if (!interaction) {
-        interaction = await prisma.interaction.create({
-            data: {
-            subscriberId: smsChannel.subscriberId,
-            channel: "SMS",
-            direction: "INBOUND",
-            status: "STARTED",
-            provider: "TWILIO",
-            fromNumberE164: From,
-            toNumberE164: To,
-            providerConversationId: null, // <-- IMPORTANT
-            },
-            select: {
-            id: true,
-            subscriberId: true,
-            providerConversationId: true,
-            },
-        });
+            interaction = await prisma.interaction.create({
+                data: {
+                subscriberId: smsChannel.subscriberId,
+                channel: "SMS",
+                direction: "INBOUND",
+                status: "STARTED",
+                provider: "TWILIO",
+                fromNumberE164: From,
+                toNumberE164: To,
+                providerConversationId: null, // <-- IMPORTANT
+                },
+                select: {
+                id: true,
+                subscriberId: true,
+                providerConversationId: true,
+                },
+            });
 
-        console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
-            interactionId: interaction.id,
-            subscriberId: interaction.subscriberId,
-        });
+            console.log("[Twilio SMS inbound] Created SMS thread Interaction", {
+                interactionId: interaction.id,
+                subscriberId: interaction.subscriberId,
+            });
         } else {
         console.log("[Twilio SMS inbound] Reused SMS thread Interaction", {
             interactionId: interaction.id,
@@ -297,12 +297,11 @@ router.post(
                     let lastAgentMsgWithPolicy = lastAgentMsg || "Okay — how can I help?";
                     const directToWebsite = subscriber?.websiteUrl;
                     const directToPhone = subscriber?.publicPhoneE164;
-                    if (remainingOut <= 2) {
+                    if (remainingOut <= 3) {
                         
                         const parts: string[] = [
-                            `FYI: SMS limits apply — I can reply ${remainingOut} more time${remainingOut === 1 ? "" : "s"} this hour.`,
+                            `FYI: SMS limits apply — I can reply ${Math.max(remainingOut - 1, 0)} more time${Math.max(remainingOut - 1, 0) === 1 ? "" : "s"} this hour.`,
                         ];
-
                         if (directToWebsite) parts.push(`Continue on chat: ${directToWebsite}\n`);
                         if (directToPhone) parts.push(`Call: ${directToPhone}\n`);
 
