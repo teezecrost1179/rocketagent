@@ -107,6 +107,151 @@ function applySmsPolicy({
 //end applySmsPolicy function
 
 
+// *** big function to get the retell reply with recovery *** ***********
+// *** big function to get the retell reply with recovery *** ***********
+async function getRetellReplyWithRecovery({
+  interactionId,
+  existingChatId,
+  retellApiKey,
+  retellChatAgentId,
+  inboundText,
+  subscriberId,
+  from,
+  to,
+}: {
+  interactionId: string;
+  existingChatId: string | null;
+  retellApiKey: string;
+  retellChatAgentId: string;
+  inboundText: string;
+  subscriberId: string;
+  from: string;
+  to: string;
+}): Promise<{ chatId: string; lastAgentMsg: string | null; usedRecovery: boolean }> {
+  // 0) Start with whatever we already have stored on the Interaction
+  let chatId = existingChatId;
+
+
+  // 1) If we don't have a valid Retell chat_id, create a new one
+  if (!chatId ) {
+    const createChatResp = await fetch("https://api.retellai.com/create-chat", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${retellApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        agent_id: retellChatAgentId,
+        metadata: { subscriberId, from, to, interactionId },
+      }),
+    });
+
+    if (!createChatResp.ok) {
+      const text = await createChatResp.text();
+      throw new Error(`Retell create-chat failed (${createChatResp.status}): ${text}`);
+    }
+
+    const created = await createChatResp.json();
+    chatId = created.chat_id as string;
+
+    // Persist the new chat_id onto the SAME Interaction so future SMS messages keep context
+    await prisma.interaction.update({
+      where: { id: interactionId },
+      data: { providerConversationId: chatId },
+    });
+  }
+
+  // 2) Attempt a normal completion
+  const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${retellApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: chatId!,
+      content: inboundText,
+    }),
+  });
+
+  if (completionResp.ok) {
+    const completion = await completionResp.json();
+    const lastAgentMsg =
+      [...(completion.messages || [])].reverse().find((m: any) => m.role === "agent")?.content ?? null;
+
+    return { chatId, lastAgentMsg, usedRecovery: false };
+  }
+
+  // 3) If completion failed, check if it's the "chat already ended" case
+  const errorText = await completionResp.text();
+  const isChatEnded =
+    completionResp.status === 400 && errorText.toLowerCase().includes("chat already ended");
+
+  if (!isChatEnded) {
+    throw new Error(`Retell create-chat-completion failed (${completionResp.status}): ${errorText}`);
+  }
+
+  // 4) Recovery path: create a new chat, store it, then retry completion with DB history context
+  const createChatResp2 = await fetch("https://api.retellai.com/create-chat", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${retellApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      agent_id: retellChatAgentId,
+      metadata: { subscriberId, from, to, interactionId, reason: "recovered_from_chat_ended" },
+    }),
+  });
+
+  if (!createChatResp2.ok) {
+    const text2 = await createChatResp2.text();
+    throw new Error(`Retell create-chat (recovery) failed (${createChatResp2.status}): ${text2}`);
+  }
+
+  const created2 = await createChatResp2.json();
+  const newChatId = created2.chat_id as string;
+
+  // Update the SAME Interaction to point at the new chat_id
+  await prisma.interaction.update({
+    where: { id: interactionId },
+    data: { providerConversationId: newChatId },
+  });
+
+  // Build a short history context from DB so the new chat_id isn't "fresh"
+  const history = await buildRecoveryContext({ interactionId });
+
+  const recoveryPrompt =
+    `Context (most recent messages):\n${history}\n\n` +
+    `Instruction: Do not repeat the context. Reply naturally and briefly to the latest user message.\n\n` +
+    `Latest user message: ${inboundText.trim()}`;
+
+  const retryResp = await fetch("https://api.retellai.com/create-chat-completion", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${retellApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: newChatId,
+      content: recoveryPrompt,
+    }),
+  });
+
+  if (!retryResp.ok) {
+    const text3 = await retryResp.text();
+    throw new Error(`Retell retry create-chat-completion failed (${retryResp.status}): ${text3}`);
+  }
+
+  const completion2 = await retryResp.json();
+  const lastAgentMsg2 =
+    [...(completion2.messages || [])].reverse().find((m: any) => m.role === "agent")?.content ?? null;
+
+  return { chatId: newChatId, lastAgentMsg: lastAgentMsg2, usedRecovery: true };
+}
+// *** END big function to get the retell reply with recovery getRetellReplyWithRecovery*** ***********
+// *** END big function to get the retell reply with recovery getRetellReplyWithRecovery*** ***********
+
 
 /**
  * Twilio sends inbound SMS as application/x-www-form-urlencoded by default.
@@ -189,13 +334,6 @@ router.post(
             channelId: smsChannel.id,
             subscriberId: smsChannel.subscriberId,
         });
-
-        // Pull public contact info for warning messages (website + phone)
-        const subscriber = await prisma.subscriber.findUnique({
-            where: { id: smsChannel.subscriberId },
-            select: { websiteUrl: true, publicPhoneE164: true },
-        });
-
 
 
         // --- B-LITE: rate limit inbound SMS per sender per hour ---
@@ -316,77 +454,28 @@ router.post(
         } else if (!retellChatAgentId) {
         console.error("[SMS A1] Missing Retell chat agent id (smsChannel.providerInboxId)");
         } else {
-            // Reuse chat_id if we already created one for this Interaction thread
-            let chatId = interaction.providerConversationId;
 
-            // If providerConversationId is empty OR still looks like a Twilio MessageSid ("SM...")
-            if (!chatId || chatId.startsWith("SM")) {
-                const createChatResp = await fetch("https://api.retellai.com/create-chat", {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${retellApiKey}`,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        agent_id: retellChatAgentId,
-                        metadata: {
-                        subscriberId: smsChannel.subscriberId,
-                        from: From,
-                        to: To,
-                        },
-                    }),
-                });
 
-                if (!createChatResp.ok) {
-                    const text = await createChatResp.text();
-                    console.error("[SMS A1] Retell create-chat failed", createChatResp.status, text);
-                } else {
-                    const created = await createChatResp.json();
-                    chatId = created.chat_id;
+            const normalizedBody = (Body || "").trim().toLowerCase();
 
-                    // Save chat_id so future SMS in this thread keeps context
-                    await prisma.interaction.update({
-                        where: { id: interaction.id },
-                        data: { providerConversationId: chatId },
-                    });
+            // DEV: only run endchat if we already have a chat id to end
+            // DEV: only run endchat if we already have a chat id to end
+            if (normalizedBody === "endchat" && interaction.providerConversationId) {
+                const chatIdToEnd = interaction.providerConversationId;
 
-                    console.log("[SMS A1] Created Retell chat", { chatId });
-                }
-            }
-
-            if (chatId) {
-
-                // --- DEV TEST HOOK: if user texts "endchat", end the Retell chat session ---
-                // This is purely for testing your recovery logic. We wait until chatId exists.
-                const normalizedBody = (Body || "").trim().toLowerCase();
-
-                if (normalizedBody === "endchat") {
-                // 1) Tell the texter we ended it (so the test is obvious)
-                const twilioClient = Twilio(
-                    process.env.TWILIO_ACCOUNT_SID!,
-                    process.env.TWILIO_AUTH_TOKEN!
-                );
-
+                // 1) Send "Ended." back to the texter + persist it
                 const endedReply = "Ended.";
 
-                const outboundMessage = await twilioClient.messages.create({
-                    from: To,
-                    to: From,
+                await sendSmsAndPersist({
+                    toUserNumber: From,
+                    fromTwilioNumber: To,
                     body: endedReply,
-                });
-
-                // Persist the outbound message
-                await prisma.interactionMessage.create({
-                    data: {
                     interactionId: interaction.id,
-                    role: "AGENT",
-                    content: endedReply,
-                    providerMessageId: outboundMessage.sid,
-                    },
+                    rid,
                 });
 
-                // 2) End the Retell chat session (so the next message triggers your recovery path)
-                const endResp = await fetch(`https://api.retellai.com/end-chat/${chatId}`, {
+                // 2) End the Retell chat session
+                const endResp = await fetch(`https://api.retellai.com/end-chat/${chatIdToEnd}`, {
                     method: "PATCH",
                     headers: {
                     Authorization: `Bearer ${retellApiKey}`,
@@ -397,177 +486,51 @@ router.post(
                 if (!endResp.ok) {
                     console.error("[SMS A1] Retell end-chat failed", endResp.status, await endResp.text());
                 } else {
-                    console.log("[SMS A1] Retell chat ended via 'endchat' command", { chatId });
+                    console.log("[SMS A1] Retell chat ended via 'endchat'", { chatId: chatIdToEnd });
                 }
 
-                // 3) Stop processing: don't call create-chat-completion for this inbound message
+                // 3) Stop processing (do not call completion)
                 return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
                 <Response></Response>`);
-                }
-                // END IF *ENDCHAT***
-
-
-                // --- Call Retell for the next reply in this chat ---
-                const completionResp = await fetch("https://api.retellai.com/create-chat-completion", {
-                    method: "POST",
-                    headers: {
-                        Authorization: `Bearer ${retellApiKey}`,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        chat_id: chatId,
-                        content: Body || "",
-                    }),
-                });
-
-                if (!completionResp.ok) {
-                    // If Retell returns an error, we read the body as text so we can inspect it.
-                    const text = await completionResp.text();
-
-                    // Special case: Retell is telling us the chat session is closed and cannot continue.
-                    // In this case, we do NOT create a new Interaction thread in our DB.
-                    // We simply create a new Retell chat_id, store it on the same Interaction,
-                    // then retry the completion ONE time.
-                    const isChatEnded =
-                        completionResp.status === 400 && text.toLowerCase().includes("chat already ended");
-                    if (!isChatEnded) {
-                        console.error("[SMS A1] Retell create-chat-completion failed", completionResp.status, text);
-                    } else {
-                        console.warn("[SMS A1] Retell chat ended. Creating a new chat and retrying once.", {
-                        oldChatId: chatId,
-                        interactionId: interaction.id,
-                        });
-
-                        // 1) Create a NEW Retell chat session
-                        const createChatResp2 = await fetch("https://api.retellai.com/create-chat", {
-                            method: "POST",
-                            headers: {
-                                Authorization: `Bearer ${retellApiKey}`,
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({
-                                agent_id: retellChatAgentId,
-                                metadata: {
-                                subscriberId: smsChannel.subscriberId,
-                                from: From,
-                                to: To,
-                                // (Optional) helps you debug which Interaction this new chat was created for
-                                interactionId: interaction.id,
-                                reason: "recovered_from_chat_ended",
-                                },
-                            }),
-                        });
-
-                        if (!createChatResp2.ok) {
-                            const t2 = await createChatResp2.text();
-                            console.error("[SMS A1] Retell create-chat failed during recovery", createChatResp2.status, t2);
-                        } else {
-                            const created2 = await createChatResp2.json();
-                            const newChatId = created2.chat_id as string;
-
-                            // 2) Update the SAME Interaction to point at the new Retell chat_id.
-                            // This preserves your 24-hour SMS thread and your DB conversation history.
-                            await prisma.interaction.update({
-                                where: { id: interaction.id },
-                                data: { providerConversationId: newChatId },
-                            });
-
-                            console.log("[SMS A1] RECOVERY created new Retell chat due to ended chat", {
-                                oldChatId: chatId,
-                                newChatId,
-                                interactionId: interaction.id,
-                            });
-
-                            
-                            // first build recovery prompt for a completion re-try
-                            const history = await buildRecoveryContext({
-                                interactionId: interaction.id,
-                            });
-                            const recoveryPrompt =
-                                `Context (most recent messages):\n${history}\n\n` +
-                                `Instruction: Do not repeat the context. Reply naturally and briefly to the latest user message.\n\n` +
-                                `Latest user message: ${(Body || "").trim()}`;
-
-                            // 3) Retry the completion one time using the new chat_id
-                            const retryResp = await fetch("https://api.retellai.com/create-chat-completion", {
-                                method: "POST",
-                                headers: {
-                                Authorization: `Bearer ${retellApiKey}`,
-                                "Content-Type": "application/json",
-                                },
-                                body: JSON.stringify({
-                                chat_id: newChatId,
-                                content: recoveryPrompt,
-                                }),
-                            });
-
-                            if (!retryResp.ok) {
-                                const t3 = await retryResp.text();
-                                console.error("[SMS A1] Retell retry create-chat-completion failed", retryResp.status, t3);
-                            } else {
-                                // ✅ From here on, treat retry completion exactly like the normal success path:
-                                const completion = await retryResp.json();
-                                const lastAgentMsg = [...(completion.messages || [])]
-                                .reverse()
-                                .find((m: any) => m.role === "agent")?.content;
-
-                                console.log("[SMS A1] Retell reply after recovery (not sent yet)", {
-                                chatId: newChatId,
-                                reply: lastAgentMsg,
-                                recoverPrompt: recoveryPrompt,
-                                });
-
-                                // IMPORTANT: set chatId to the new one so any downstream logs/use are consistent
-                                chatId = newChatId;
-
-                                const bodyToSend = applySmsPolicy({
-                                    agentReply: lastAgentMsg,
-                                    remainingOut,
-                                    rid,
-                                    outboundCount,
-                                });
-                                //**Send Twilio and Persist ****
-                                await sendSmsAndPersist({
-                                    toUserNumber: From,
-                                    fromTwilioNumber: To,
-                                    body: bodyToSend,
-                                    interactionId: interaction.id,
-                                    rid,
-                                });
-
-                            }
-                        }
-                    }
-                } else {
-                    // ✅ Normal success path: Retell returned a completion for the current chat_id
-                    const completion = await completionResp.json();
-
-                    const lastAgentMsg = [...(completion.messages || [])]
-                        .reverse()
-                        .find((m: any) => m.role === "agent")?.content;
-
-                    console.log("[SMS A1] Retell reply (not sent to texter yet)", { chatId, reply: lastAgentMsg });
-
-                    const bodyToSend = applySmsPolicy({
-                        agentReply: lastAgentMsg,
-                        remainingOut,
-                        rid,
-                        outboundCount,
-                    });
-                    //**Send Twilio and Persist ****
-                    await sendSmsAndPersist({
-                        toUserNumber: From,
-                        fromTwilioNumber: To,
-                        body: bodyToSend,
-                        interactionId: interaction.id,
-                        rid,
-                    });
-    
-
-
-                }
-
             }
+
+
+            // Otherwise: always get Retell reply (helper will create chat if needed)
+            const { chatId: finalChatId, lastAgentMsg, usedRecovery } =
+            await getRetellReplyWithRecovery({
+                interactionId: interaction.id,
+                existingChatId: interaction.providerConversationId, // can be null — that's fine
+                retellApiKey,
+                retellChatAgentId,
+                inboundText: Body || "",
+                subscriberId: smsChannel.subscriberId,
+                from: From,
+                to: To,
+            });
+
+            if (usedRecovery) {
+                console.log("[SMS A1] Retell recovery path used", {
+                    interactionId: interaction.id,
+                    finalChatId,
+                });
+            }
+
+            // --- A2: apply SMS policy + send + persist ---
+            const bodyToSend = applySmsPolicy({
+            agentReply: lastAgentMsg,
+            remainingOut,
+            rid,
+            outboundCount,
+            });
+
+            await sendSmsAndPersist({
+            toUserNumber: From,
+            fromTwilioNumber: To,
+            body: bodyToSend,
+            interactionId: interaction.id,
+            rid,
+            });
+
         }
 
         return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
