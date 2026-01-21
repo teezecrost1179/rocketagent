@@ -119,7 +119,9 @@ model SubscriberChannel {
   transportProvider   TransportProvider
   aiProvider          AiProvider
 
-  providerAgentId    String?
+  // Retell voice agent ids
+  providerAgentIdOutbound String?
+  providerAgentIdInbound  String?
   providerNumberE164 String?
   providerInboxId    String?
 

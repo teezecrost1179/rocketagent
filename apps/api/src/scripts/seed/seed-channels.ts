@@ -38,14 +38,16 @@ async function main() {
         transportProvider: "TWILIO",
         aiProvider: "RETELL",
         providerNumberE164: DEMO_NUMBER,
-        providerAgentId: GATEKEEPER_AGENT_ID,
+        providerAgentIdOutbound: GATEKEEPER_AGENT_ID,
+        providerAgentIdInbound: GATEKEEPER_AGENT_ID,
       },
       rocketsciencedesigns: {
         enabled: true,
         transportProvider: "RETELL",
         aiProvider: "RETELL",
         providerNumberE164: RSD_NUMBER,
-        providerAgentId: null,
+        providerAgentIdOutbound: null,
+        providerAgentIdInbound: null,
       },
     };
 
@@ -55,7 +57,8 @@ async function main() {
       transportProvider: "OTHER",
       aiProvider: "RETELL",
       providerNumberE164: null,
-      providerAgentId: null,
+      providerAgentIdOutbound: null,
+      providerAgentIdInbound: null,
     };
 
     const voice = voiceConfigBySlug[sub.slug] ?? defaultVoice;
@@ -85,7 +88,8 @@ async function main() {
         transportProvider: "TWILIO",
         aiProvider: "RETELL",
         providerNumberE164: DEMO_NUMBER,
-        providerAgentId: GATEKEEPER_AGENT_ID, // optional, but ok
+        providerAgentIdOutbound: GATEKEEPER_AGENT_ID, // optional, but ok
+        providerAgentIdInbound: GATEKEEPER_AGENT_ID, // optional, but ok
         providerInboxId: "agent_ed38b16e086d8bbc3ce89c03f8",
       },
       rocketsciencedesigns: {
@@ -93,7 +97,8 @@ async function main() {
         transportProvider: "TWILIO",
         aiProvider: "RETELL",
         providerNumberE164: null,
-        providerAgentId: null,
+        providerAgentIdOutbound: null,
+        providerAgentIdInbound: null,
       },
     };
 
@@ -103,7 +108,8 @@ async function main() {
       transportProvider: "TWILIO",
       aiProvider: "RETELL",
       providerNumberE164: null,
-      providerAgentId: null,
+      providerAgentIdOutbound: null,
+      providerAgentIdInbound: null,
     };
 
     const sms = smsConfigBySlug[sub.slug] ?? defaultSms;

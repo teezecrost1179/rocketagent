@@ -1,52 +1,133 @@
 Rocket Reception — GOTCHAS / QUIRKS
 
-This file exists so Future You doesn’t have to rediscover painful lessons.
+This document exists so Future You does not re-learn the same painful lessons.
+
+Everything here is based on real failures encountered during development and production cutovers.
+
+Local vs Render databases (critical)
+
+Local development should use a local Postgres database
+
+Render production should use a separate Render Postgres database
+
+Never run prisma migrate dev or seed scripts against the production DB by accident
+
+Why this matters:
+
+SSL behavior differs
+
+Shadow DB behavior differs
+
+Seeds against prod are dangerous and confusing
+
+Rule of thumb:
+
+Local DB → localhost
+
+Render DB → *.render.com
 
 Prisma + Render gotchas
+prisma migrate dev on Render
 
-no local db. Database URL in local env var is the DB on Render.
+❌ Fails with: permission denied to terminate process
 
-prisma migrate dev on Render:
-
-Fails with “permission denied to terminate process”
-
-Reason: Render Postgres does not grant permissions needed for Prisma’s shadow DB lifecycle
+Reason: Render Postgres does not grant permissions required for Prisma’s shadow database
 
 This is not a schema bug
 
-Use prisma migrate deploy
+Use instead:
 
-Use prisma migrate diff for inspection only
+prisma migrate deploy (applies known migrations only)
 
-Shadow DB clarification:
+prisma migrate diff (inspection / verification only)
 
-Shadow DB is not local by default
+Shadow DB clarification
 
-Prisma creates it on the database pointed to by DATABASE_URL
+Prisma’s shadow DB is created on whatever database DATABASE_URL points to
 
-Ordering bugs surface during shadow DB replays
+It is not local by default
+
+Ordering bugs surface during shadow DB replays, not always immediately
 
 Migration rules of engagement
 
-Never rename migrations to force ordering (for example adding “000_”)
+❌ Never rename migrations to force ordering (e.g. adding 000_)
 
-Migrations must only touch tables that already exist at that point in history
+❌ Never edit already-applied migrations
 
-Do not edit already-applied migrations
+❌ Never “patch” broken history by stacking fixes blindly
 
-Use new migrations for fixes
+Correct approach:
+
+Add new migrations for fixes
+
+If migrations stop replaying cleanly:
+
+Stop
+
+Baseline (see below)
+
+Baseline / migration reset lessons (important)
+
+If migration history becomes unreplayable:
+
+Treat the current production DB as the source of truth
+
+Generate a single baseline migration
+
+Apply it to a new empty database
+
+Point the app at the new DB
+
+Keep the old DB temporarily as a fallback
+
+Notes:
+
+Render allows multiple databases per Postgres instance
+
+Changing only the DB name in DATABASE_URL is sufficient
+
+Render UI shows one “primary” DB, but others still exist
+
+Prisma + SSL gotchas (very common)
+
+External Render Postgres URLs require SSL
+
+Use ?sslmode=require
+
+Local Postgres does not support SSL by default
+
+Use ?sslmode=disable (or omit sslmode)
+
+Common error:
+
+“The server does not support SSL connections”
+
+This means:
+
+The DB endpoint and sslmode do not match
+
+Mental rule:
+
+Environment	Host	sslmode
+Local dev	localhost	disable
+Render prod	*.render.com	require
+
+Note:
+
+psql may succeed while Prisma fails — Prisma is stricter
 
 Provider refactor lessons
 
-A single provider field is ambiguous
+A single provider field is ambiguous.
 
 Correct split:
 
-transportProvider
+transportProvider (Twilio, Retell, etc.)
 
-aiProvider
+aiProvider (Retell, OpenAI, etc.)
 
-Correct order:
+Safe refactor order:
 
 Add new fields (nullable)
 
@@ -56,41 +137,83 @@ Enforce NOT NULL
 
 Drop legacy field
 
-Seeds
+Seeds (read this twice)
 
 Seeds are manual and idempotent
 
-Always build before running seeds
+Seeds are not independent
 
-Always run seeds from dist output
+Order matters
 
-Prisma Client + TypeScript
+Always:
 
-If TypeScript says a field does not exist:
+Build before running seeds
 
-Run prisma generate
+Run seeds from compiled dist/ output
 
-Restart the VS Code TypeScript server
+Correct seed order:
 
-VS Code aggressively caches Prisma type definitions.
+seed-core
+
+seed-agents
+
+seed-channels
+
+seed-demo
+
+Running channels before agents may silently create incomplete rows.
+
+SMS channel wiring gotchas
+
+providerInboxId is required for SMS → Retell routing
+
+Despite the name, it stores the Retell chat agent ID
+
+If missing:
+
+SMS routing succeeds
+
+Interaction is created
+
+Retell fails with “Missing Retell chat agent id”
+
+Seeds must set:
+
+enabled = true
+
+providerNumberE164
+
+providerInboxId (Retell agent ID)
 
 PowerShell / Windows quirks
 
-Some node scripts require dotenv preloading
+psql -c requires careful quoting
 
-npx failures are often execution policy or shell issues
+Double-escaped quotes silently break SQL
+
+When in doubt:
+
+Enter psql interactively
+
+Paste SQL directly
+
+Other notes:
+
+Some node scripts require explicit dotenv loading
+
+VS Code aggressively caches Prisma types
 
 Restarting the terminal fixes more than expected
 
 Twilio SMS gotchas
 
-Twilio SMS webhooks are form-encoded, not JSON
+Twilio SMS webhooks are application/x-www-form-urlencoded, not JSON
 
 Must be parsed with express.urlencoded
 
 Twilio requires a TwiML response, even if empty
 
-Leaving the demo webhook URL will swallow messages and auto-reply
+Leaving demo webhook URLs active will swallow messages and auto-reply
 
 Retell SMS limitation
 
@@ -100,7 +223,7 @@ Canadian SMS requires:
 
 Twilio as transport
 
-Your API as router and logger
+Your API as router/logger
 
 Retell chat agents as the AI brain
 
@@ -110,9 +233,9 @@ diff shows differences
 
 deploy applies known migrations
 
-dev creates and validates migrations (not suitable for Render)
+dev creates + validates migrations (not suitable for Render)
 
-Transport provider is not the same as AI provider
+Transport provider ≠ AI provider
 
 Channels are permissioned, tier-gated features
 
@@ -122,6 +245,6 @@ Trust the database state
 
 Verify with migrate diff
 
-Avoid cleverness
+Avoid clever migrations
 
-Prefer explicit over magical
+Prefer explicit data over inferred behavior

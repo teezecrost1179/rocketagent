@@ -62,7 +62,9 @@ enabled
 
 providerNumberE164 (important for SMS/VOICE routing by “To” number)
 
-providerAgentId (Retell voice agent id, etc.)
+providerAgentIdOutbound (Retell voice agent id for outbound)
+
+providerAgentIdInbound (Retell voice agent id for inbound)
 
 providerInboxId (Retell chat agent id used for SMS + web chat)
 
@@ -194,7 +196,7 @@ start event message
 
 end event message with duration/status
 
-Ensure the correct Retell voice agent id is used from DB (SubscriberChannel.providerAgentId), not hardcoded/env
+Ensure the correct Retell voice agent id is used from DB (SubscriberChannel.providerAgentIdOutbound/providerAgentIdInbound), not hardcoded/env
 
 Goal 2: Make WEB CHAT tenant/channel-aware + log Interactions like SMS (DONE)
 
@@ -230,7 +232,7 @@ Load the VOICE SubscriberChannel row and use:
 
 providerNumberE164 (from number)
 
-providerAgentId (Retell voice agent)
+providerAgentIdOutbound (Retell voice agent for outbound)
 
 Create an Interaction for the outbound call and log status transitions + any callbacks.
 
@@ -293,11 +295,19 @@ Demo businesses exist as separate Subscribers (winnipegbeauty, winnipegrenoking,
 
 Channels are seeded so only the correct subscriber claims numbers/agents.
 
-Retell agent IDs for chat/voice are stored in DB fields on SubscriberChannel (providerAgentId/providerInboxId).
+Retell agent IDs for chat/voice are stored in DB fields on SubscriberChannel (providerAgentIdOutbound/providerAgentIdInbound/providerInboxId).
 
 NOTES / GOTCHAS YOU’VE HIT BEFORE
 
 Prisma TLS errors were due to local/Render DB URL SSL config mismatch (resolved already).
+
+Reset DBs + migrations archive:
+
+Local DB: rocket_agent_local_v2
+
+Render DB: rocket_agent_baseline
+
+Inconsistent migration history prompted a clean reset and a migrations archive folder now exists.
 
 When you add new columns to Prisma schema:
 
