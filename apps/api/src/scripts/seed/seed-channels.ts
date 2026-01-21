@@ -86,6 +86,7 @@ async function main() {
         aiProvider: "RETELL",
         providerNumberE164: DEMO_NUMBER,
         providerAgentId: GATEKEEPER_AGENT_ID, // optional, but ok
+        providerInboxId: "agent_ed38b16e086d8bbc3ce89c03f8",
       },
       rocketsciencedesigns: {
         enabled: false,
