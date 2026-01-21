@@ -1,52 +1,346 @@
-# Rocket Reception — BOOTSTRAP
+START OF BOOTSTRAP (RocketAgent / Rocket Reception)
 
-## What this project is
+PROJECT PURPOSE
 
-**Rocket Reception** is a managed AI receptionist platform for SMBs.
+Multi-tenant “AI receptionist” platform for small businesses.
 
-Current capabilities:
-- Voice-first AI call handling (Retell)
-- Twilio phone numbers via SIP trunking
-- Web chat widget (DB-backed, live)
-- SMS ingress (Canada, Twilio)
-- Multi-tenant by design (everything belongs to a Subscriber)
+Supports channels: WEB CHAT, VOICE (calls), SMS.
 
-Planned / upcoming:
-- AI-powered SMS replies
-- Email routing
-- Usage-based billing
+Tenancy is modeled by Subscriber + per-channel config in SubscriberChannel.
 
-Core principles:
-- Explicit, boring schema (no magic JSON blobs)
-- Predictable behavior
-- Auditable usage & billing
-- Clear separation of transport vs AI provider
+All conversations are logged as Interaction (thread/call/conversation) + InteractionMessage (individual messages).
 
----
+REPO SHAPE (high-level)
 
-## Current stack
+apps/api/ = Express API (Render deploy target)
 
-### Backend
-- Node.js + TypeScript
-- Express
-- Prisma ORM
-- PostgreSQL (Render-managed)
-- Hosted on Render
+src/routes/
 
-### Widget
-- Plain JS compiled from TypeScript
-- Hosted on cPanel
-- Embedded via:
+twilioWebhooks.ts = Twilio inbound webhooks (SMS is implemented end-to-end)
 
-```html
-<script
-  src="https://widget.rocketreception.ca/widget.js"
-  data-api-base="https://rocketagent.onrender.com"
-  data-subscriber="rocketsciencedesigns"
-  defer
-></script>
-<script>
-  window.addEventListener("load", function () {
-    if (window.RocketChatWidget) RocketChatWidget.init();
-  });
-</script>
+callRoutes.ts = outbound “call me” endpoint (currently env-based)
+
+chatRoutes.ts = web chat endpoints (currently not fully tenant/channel-aware)
+
+widgetConfig.ts = widget config endpoint (DB-driven per subscriber)
+
+src/services/retellService.ts = helper(s) for Retell outbound call (currently env-based)
+
+scripts/seed/ = seed scripts (idempotent upserts)
+
+Prisma
+
+apps/api/prisma/schema.prisma defines:
+
+Subscriber (tenant + widget/public contact info)
+
+SubscriberChannel (per-tenant channel config: enabled, providers, number, agent IDs)
+
+Interaction (conversation/thread container)
+
+InteractionMessage (messages in an Interaction)
+
+UsageRollup (exists, but NOT currently written to by code)
+
+DATABASE MODEL (current important fields)
+
+Subscriber
+
+slug (unique tenant key)
+
+Widget fields: widgetTitle, widgetSubtitle, widgetGreeting, widgetAvatarUrl, widgetEnabled, offlineMessage
+
+Public contact fields (just added + migrated): websiteUrl, publicPhoneE164
+
+SubscriberChannel
+
+Unique per (subscriberId, channel)
+
+channel: VOICE | CHAT | SMS
+
+enabled
+
+providerNumberE164 (important for SMS/VOICE routing by “To” number)
+
+providerAgentId (Retell voice agent id, etc.)
+
+providerInboxId (Retell chat agent id used for SMS + web chat)
+
+transportProvider, aiProvider
+
+Interaction
+
+For SMS: used as the “thread”
+
+providerConversationId is used to store Retell chat_id for continuity across messages
+
+Also stores fromNumberE164, toNumberE164, timestamps/status
+
+InteractionMessage
+
+role: USER | AGENT | SYSTEM | TOOL
+
+providerMessageId: Twilio MessageSid for SMS idempotency + tracing
+
+SEEDS (why they exist + how they’re used)
+
+Seed scripts are repeatable (idempotent) upserts so a fresh DB (or a reset DB) can be brought to a known working state quickly.
+
+In production, adding a real subscriber would normally be done by an admin UI / internal tool (not seeds). Seeds are mainly:
+
+dev/demo setup
+
+consistent environments
+
+quick rebuilds after schema changes
+
+Current seed scripts:
+
+seed-core.ts: upserts core Subscribers (rocketsciencedesigns + demo-gatekeeper) including websiteUrl and publicPhoneE164
+
+seed-demo.ts: upserts demo Subscribers (winnipegbeauty, winnipegrenoking, winnipegprimoaccountants) widget content
+
+seed-channels.ts: upserts SubscriberChannel rows for CHAT/VOICE/SMS and ensures only the correct subscriber “claims” numbers / agents
+
+seed-agents.ts: seeds internal Agent table entries (not Retell agent IDs; these are “our” Agent prompts)
+
+ENV VARS (local .env and Render)
+
+Database
+
+DATABASE_URL=...
+
+Retell
+
+RETELL_API_KEY=...
+
+Twilio (needed for sending SMS + webhook validation if you add it later)
+
+TWILIO_ACCOUNT_SID=...
+
+TWILIO_AUTH_TOKEN=...
+
+NOTE: You currently still have some env vars like RETELL_FROM_NUMBER, RETELL_AGENT_ID, RETELL_CHAT_AGENT_ID from earlier work. They are used by the current outbound call / older patterns, and may be phased out as we move channel config into the DB.
+
+WHAT IS DONE (SMS IS “FINISH LINE” LEVEL)
+File: apps/api/src/routes/twilioWebhooks.ts
+
+Inbound SMS endpoint (POST /sms) is working end-to-end:
+
+Parses Twilio form payload.
+
+Idempotency: ignores duplicates using InteractionMessage.providerMessageId = MessageSid.
+
+Resolves the tenant via SubscriberChannel by matching:
+
+channel = "SMS"
+
+enabled = true
+
+providerNumberE164 = To (Twilio number)
+
+D-lite threading:
+
+Reuses an existing Interaction (SMS thread) for same subscriber + From/To inside a window.
+
+Persists inbound text as InteractionMessage role=USER.
+
+Retell chat:
+
+Uses SubscriberChannel.providerInboxId as the Retell chat agent id.
+
+Creates Retell chat_id if missing and stores it on Interaction.providerConversationId.
+
+Sends message to Retell create-chat-completion to get a reply.
+
+A2 outbound SMS:
+
+Sends the Retell reply via Twilio.
+
+Persists outbound message as InteractionMessage role=AGENT with Twilio SID.
+
+Rate limiting:
+
+Outbound-per-hour limiting is implemented and working now.
+
+Policy/warning messaging is implemented (append “remaining replies” + website/phone) and depends on:
+
+counting outbound InteractionMessage (role=AGENT) in last hour
+
+Subscriber websiteUrl and publicPhoneE164 for “continue on website / call” directions
+
+There are helper functions in this file (ex: policy application, sending + persisting) to keep logic consistent.
+
+IMPORTANT: UsageRollup
+
+Current code does not insert/update UsageRollup anywhere yet.
+
+Right now, usage can be derived from Interaction + InteractionMessage by querying counts over time.
+
+UsageRollup is intended as a monthly aggregation table (fast billing queries), but needs a job/worker/cron to compute it.
+
+WHAT STILL NEEDS DOING (NEXT GOALS)
+Goal 1: Make VOICE tenant/channel-aware + log Interactions like SMS
+
+Update inbound voice webhook route(s) (Twilio -> Retell or Retell -> your API, depending on your current call flow) to:
+
+Resolve subscriber by called number (To) using SubscriberChannel where channel="VOICE" and enabled=true
+
+Create an Interaction for the call (providerCallId, from/to, startedAt, etc.)
+
+Persist key “events” or transcripts as InteractionMessage (if/when available), or at minimum:
+
+start event message
+
+end event message with duration/status
+
+Ensure the correct Retell voice agent id is used from DB (SubscriberChannel.providerAgentId), not hardcoded/env
+
+Goal 2: Make WEB CHAT tenant/channel-aware + log Interactions like SMS (DONE)
+
+Update chatRoutes.ts so that the request identifies which tenant it is for (DONE)
+
+Request requires subscriber slug in body.
+
+Resolves SubscriberChannel where channel="CHAT", enabled=true (DONE)
+
+Uses providerInboxId as Retell chat agent id (DONE)
+
+Creates Interaction per session and persists inbound/outbound messages (DONE)
+
+Continuity:
+
+Retell chat_id stored on Interaction.providerConversationId (DONE)
+
+Widget stores chatId in localStorage per subscriber (DONE)
+
+Goal 3: Outbound “Call me” route refactor (optional but recommended soon)
+
+The “call me” button DOES call your API:
+
+The website JS posts to https://rocketagent.onrender.com/call
+
+Current callRoutes.ts uses env-based Retell config (RETELL_FROM_NUMBER / RETELL_AGENT_ID pattern).
+
+Future direction to align with DB:
+
+Determine subscriber for the call request (e.g., pass slug in request body, or host-based mapping)
+
+Load the VOICE SubscriberChannel row and use:
+
+providerNumberE164 (from number)
+
+providerAgentId (Retell voice agent)
+
+Create an Interaction for the outbound call and log status transitions + any callbacks.
+
+HOW TO THINK ABOUT “ONE ROUTE VS SEPARATE ROUTE” FOR OUTBOUND CALLS
+
+Keep inbound voice webhooks and outbound “call me” as separate endpoints/routes:
+
+They are different triggers, different payloads, different auth/threat models.
+
+They can share helper functions:
+
+resolveSubscriberByNumber(To)
+
+createInteractionForCall()
+
+logInteractionMessage()
+
+USAGE DATA (SHORT-TERM vs LONG-TERM)
+Short-term (right now)
+
+Query directly from Interaction / InteractionMessage:
+
+SMS outbound count per subscriber per hour/day
+
+Conversations per channel per day/week
+
+Basic billing previews
+
+This is the best source of truth until rollups exist.
+
+Long-term (recommended)
+
+Use UsageRollup as the monthly “billing-grade” summary table.
+
+Implement a scheduled job (cron/worker) that:
+
+Aggregates per subscriber per month:
+
+smsCount (could be outbound only for billing, or both inbound/outbound depending on your pricing)
+
+voiceCallsCount / voiceMinutes
+
+chatConversationsCount / chatMessagesCount
+
+Upserts into UsageRollup.
+
+Build a secure internal dashboard:
+
+Admin auth
+
+Subscriber list with rollups + ability to drill down into raw interactions/messages
+
+This can start as a simple admin-only page/API.
+
+CURRENT DEMO SETUP
+
+Demo gatekeeper subscriber exists and “owns” the demo Twilio number.
+
+Demo businesses exist as separate Subscribers (winnipegbeauty, winnipegrenoking, winnipegprimoaccountants).
+
+Channels are seeded so only the correct subscriber claims numbers/agents.
+
+Retell agent IDs for chat/voice are stored in DB fields on SubscriberChannel (providerAgentId/providerInboxId).
+
+NOTES / GOTCHAS YOU’VE HIT BEFORE
+
+Prisma TLS errors were due to local/Render DB URL SSL config mismatch (resolved already).
+
+When you add new columns to Prisma schema:
+
+migrate DB
+
+regenerate Prisma client (so TS types include new fields)
+
+rebuild TS -> dist before running compiled seed JS
+
+Trial Twilio adds “Sent from your Twilio trial account” banner (normal).
+
+NEXT WORK SESSION CHECKLIST (what Codex should do next)
+
+Add Interaction summaries
+
+Decide summary provider (OpenAI vs Retell) and storage location.
+
+Potential storage options:
+
+- Interaction.summary (new field)
+
+- InteractionMessage role=SYSTEM with summary content (convention)
+
+Read apps/api/src/routes/twilioWebhooks.ts and copy the “pattern” used for SMS:
+
+resolve tenant via SubscriberChannel
+
+create/reuse Interaction
+
+write InteractionMessage
+
+Apply the same pattern to:
+
+voice webhook route(s) (wherever voice inbound is currently handled)
+
+Refactor callRoutes.ts to:
+
+accept a subscriber identifier (slug)
+
+resolve VOICE channel from DB
+
+use DB-based from number + Retell voice agent id
+
+log Interaction and messages/events
+
+END OF BOOTSTRAP

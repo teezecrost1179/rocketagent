@@ -4,6 +4,8 @@ This file exists so Future You doesn’t have to rediscover painful lessons.
 
 Prisma + Render gotchas
 
+no local db. Database URL in local env var is the DB on Render.
+
 prisma migrate dev on Render:
 
 Fails with “permission denied to terminate process”

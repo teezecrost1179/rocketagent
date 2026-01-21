@@ -144,6 +144,8 @@ model Interaction {
   status         InteractionStatus  @default(STARTED)
   provider       ProviderType       @default(OTHER)
 
+  summary String? @db.Text  // or just String? if you don't want db-specific type
+
   providerCallId         String?
   providerConversationId String?
 

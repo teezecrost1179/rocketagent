@@ -26,6 +26,7 @@
   };
 
   let _initialized = false;
+  let _api: { open: () => void; close: () => void; reset: () => void } | null = null;
 
   const defaultOptions: Required<
     Pick<
@@ -55,6 +56,33 @@
   function normalizeApiBase(apiBase?: string): string {
     if (!apiBase) return "";
     return apiBase.replace(/\/+$/, "");
+  }
+
+  function getChatStorageKey(subscriber?: string): string | null {
+    const slug = (subscriber || "").trim().toLowerCase();
+    if (!slug) return null;
+    return "rcw_chat_id:" + slug;
+  }
+
+  function loadChatId(subscriber?: string): string | null {
+    const key = getChatStorageKey(subscriber);
+    if (!key) return null;
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveChatId(subscriber: string | undefined, chatId: string | null) {
+    const key = getChatStorageKey(subscriber);
+    if (!key) return;
+    try {
+      if (chatId) localStorage.setItem(key, chatId);
+      else localStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors (private mode, blocked, etc.)
+    }
   }
 
   function findWidgetScriptTag(): HTMLScriptElement | null {
@@ -438,7 +466,7 @@
 
     applyPosition(root, panel, options.position, options.offsetX, options.offsetY);
 
-    let chatId: string | null = null;
+    let chatId: string | null = loadChatId(options.subscriber);
     let sending = false;
 
     function appendMessage(role: "user" | "agent", text: string) {
@@ -485,11 +513,24 @@
       return !!normalizeApiBase(options.apiBase) && !options.offline;
     }
 
+    function resetSession() {
+      chatId = null;
+      saveChatId(options.subscriber, null);
+      messagesEl.innerHTML = "";
+      if (options.greeting) appendMessage("agent", options.greeting);
+      setStatus("");
+    }
+
     function sendMessage(text: string) {
       if (!text || !text.trim() || sending) return;
 
       if (!canChat()) {
-        appendMessage("agent", "Sorry — I can’t connect right now. Please try again later.");
+        appendMessage("agent", "Sorry – I can’t connect right now. Please try again later.");
+        return;
+      }
+
+      if (text.trim().toLowerCase() === "/reset") {
+        resetSession();
         return;
       }
 
@@ -533,6 +574,7 @@
           }
 
           chatId = (result.data && result.data.chatId) || chatId;
+          saveChatId(options.subscriber, chatId);
           const reply = (result.data && result.data.reply) || "(No response)";
           appendMessage("agent", reply);
         })
@@ -597,7 +639,10 @@
       },
       close: () => {
         root.classList.remove("rcw-open");
-      }
+      },
+      reset: () => {
+        resetSession();
+      },
     };
   }
 
@@ -619,9 +664,11 @@
 
     const boot = (finalOpts: WidgetConfig) => {
       if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", () => createWidget(finalOpts));
+        document.addEventListener("DOMContentLoaded", () => {
+          _api = createWidget(finalOpts);
+        });
       } else {
-        createWidget(finalOpts);
+        _api = createWidget(finalOpts);
       }
     };
 
@@ -655,7 +702,12 @@
   }
 
   // Expose globally
-  const RocketChatWidget = { init };
+  const RocketChatWidget = {
+    init,
+    open: () => _api?.open(),
+    close: () => _api?.close(),
+    reset: () => _api?.reset(),
+  };
 
   if (!(window as any).RocketChatWidget) {
     (window as any).RocketChatWidget = RocketChatWidget;

@@ -81,16 +81,22 @@ export async function createRetellCallFromChat(phone: string) {
  */
 export async function getRetellChatCompletion(
   message: string,
-  chatId?: string
+  chatId?: string,
+  agentId?: string
 ): Promise<{ chatId: string; fullReply: string }> {
   let chat_id = chatId;
+  const resolvedAgentId = agentId || RETELL_CHAT_AGENT_ID;
 
   // 1) Create chat if needed
   if (!chat_id) {
+    if (!resolvedAgentId) {
+      throw new Error("Missing Retell chat agent id");
+    }
+
     const createChatResp = await axios.post(
       "https://api.retellai.com/create-chat",
       {
-        agent_id: RETELL_CHAT_AGENT_ID,
+        agent_id: resolvedAgentId,
       },
       {
         headers: {
