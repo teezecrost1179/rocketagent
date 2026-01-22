@@ -4,7 +4,10 @@ import { prisma } from "../../lib/prisma";
 async function main() {
   const DEMO_NUMBER = "+14316005505";
   const RSD_NUMBER = "+12048082733";
-  const GATEKEEPER_AGENT_ID = "agent_7ace7a26b3a6e5a2d9f3cea066";
+  const GATEKEEPER_INBOUND_AGENT_ID = "agent_7ace7a26b3a6e5a2d9f3cea066";
+  const GATEKEEPER_OUTBOUND_AGENT_ID = "agent_5641a5e80e400b7ff5fa34b150";
+  const RSD_INBOUND_AGENT_ID = "agent_59a0cc2b7135463c3acc7cadd5";
+  const RSD_OUTBOUND_AGENT_ID = "agent_957038f7f980c276a6af3ec3b6";
   const subscribers = await prisma.subscriber.findMany({
     select: { id: true, slug: true },
   });
@@ -38,16 +41,16 @@ async function main() {
         transportProvider: "TWILIO",
         aiProvider: "RETELL",
         providerNumberE164: DEMO_NUMBER,
-        providerAgentIdOutbound: GATEKEEPER_AGENT_ID,
-        providerAgentIdInbound: GATEKEEPER_AGENT_ID,
+        providerAgentIdOutbound: GATEKEEPER_OUTBOUND_AGENT_ID,
+        providerAgentIdInbound: GATEKEEPER_INBOUND_AGENT_ID,
       },
       rocketsciencedesigns: {
         enabled: true,
         transportProvider: "RETELL",
         aiProvider: "RETELL",
         providerNumberE164: RSD_NUMBER,
-        providerAgentIdOutbound: null,
-        providerAgentIdInbound: null,
+        providerAgentIdOutbound: RSD_OUTBOUND_AGENT_ID,
+        providerAgentIdInbound: RSD_INBOUND_AGENT_ID,
       },
     };
 
@@ -88,8 +91,6 @@ async function main() {
         transportProvider: "TWILIO",
         aiProvider: "RETELL",
         providerNumberE164: DEMO_NUMBER,
-        providerAgentIdOutbound: GATEKEEPER_AGENT_ID, // optional, but ok
-        providerAgentIdInbound: GATEKEEPER_AGENT_ID, // optional, but ok
         providerInboxId: "agent_ed38b16e086d8bbc3ce89c03f8",
       },
       rocketsciencedesigns: {
