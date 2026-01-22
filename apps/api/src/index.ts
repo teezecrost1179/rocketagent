@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import callRoutes from "./routes/callRoutes";
 import chatRoutes from "./routes/chatRoutes";
+import retellWebhooks from "./routes/retellWebhooks";
 import widgetConfigRoutes from "./routes/widgetConfig";
 import twilioWebhooks from "./routes/twilioWebhooks";
 
@@ -11,6 +12,7 @@ app.use(cors());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use("/webhooks/twilio", twilioWebhooks);
+app.use(retellWebhooks);
 
 
 // Basic test route
