@@ -18,21 +18,51 @@ export async function createRetellCallFromForm(phone: string, name?: string) {
     throw new Error(`Invalid phone number format after normalization: ${toNumber}`);
   }
 
-  const greeting = name
-    ? `Hi - this is Rocket, the AI receptionist from Rocket Science Designs. - Is this ${name}?`
-    : `Hi - this is Rocket, the AI receptionist from Rocket Science Designs. - You requested a call from us through the website. - Is now a good time to chat?`;
-
-  const payload: any = {
-    from_number: RETELL_FROM_NUMBER,
-    to_number: toNumber,
-    ...(RETELL_AGENT_ID ? { agent_id: RETELL_AGENT_ID } : {}),
-    retell_llm_dynamic_variables: {
+  return createRetellOutboundCall({
+    fromNumber: RETELL_FROM_NUMBER,
+    toNumber,
+    agentId: RETELL_AGENT_ID || undefined,
+    dynamicVariables: {
       call_type: "outbound",
-      greeting,
     },
+  });
+}
+
+/**
+ * Outbound call triggered from chat when CALL_REQUEST is detected
+ */
+export async function createRetellCallFromChat(phone: string) {
+  const toNumber = normalizePhone(phone);
+
+  await createRetellOutboundCall({
+    fromNumber: RETELL_FROM_NUMBER,
+    toNumber,
+    agentId: RETELL_AGENT_ID || undefined,
+    dynamicVariables: {
+      call_type: "outbound",
+    },
+  });
+}
+
+export async function createRetellOutboundCall({
+  fromNumber,
+  toNumber,
+  agentId,
+  dynamicVariables,
+}: {
+  fromNumber: string;
+  toNumber: string;
+  agentId?: string;
+  dynamicVariables?: Record<string, string>;
+}) {
+  const payload: any = {
+    from_number: fromNumber,
+    to_number: toNumber,
+    ...(agentId ? { agent_id: agentId } : {}),
+    retell_llm_dynamic_variables: dynamicVariables || {},
   };
 
-  console.log("Creating Retell phone call from form with payload:", payload);
+  console.log("Creating Retell phone call with payload:", payload);
 
   const response = await axios.post(
     "https://api.retellai.com/v2/create-phone-call",
@@ -46,34 +76,6 @@ export async function createRetellCallFromForm(phone: string, name?: string) {
   );
 
   return response.data;
-}
-
-/**
- * Outbound call triggered from chat when CALL_REQUEST is detected
- */
-export async function createRetellCallFromChat(phone: string) {
-  const toNumber = normalizePhone(phone);
-
-  const payload: any = {
-    from_number: RETELL_FROM_NUMBER,
-    to_number: toNumber,
-    ...(RETELL_AGENT_ID ? { agent_id: RETELL_AGENT_ID } : {}),
-    retell_llm_dynamic_variables: {
-      call_type: "outbound",
-      greeting:
-        "Hi - this is Rocket, the AI receptionist from Rocket Science Designs. " +
-        "We were just chatting on the website. - Is now a good time to talk on the phone?",
-    },
-  };
-
-  console.log("Triggering Retell call from chat with payload:", payload);
-
-  await axios.post("https://api.retellai.com/v2/create-phone-call", payload, {
-    headers: {
-      Authorization: `Bearer ${RETELL_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-  });
 }
 
 /**

@@ -1,11 +1,83 @@
 import { Router } from "express";
 import {
   getRetellChatCompletion,
-  createRetellCallFromChat,
+  createRetellOutboundCall,
 } from "../services/retellService";
 import { prisma } from "../lib/prisma";
+import { normalizePhone } from "../utils/phone";
 
 const router = Router();
+
+async function triggerOutboundCallFromChat({
+  phone,
+  subscriberId,
+  subscriberSlug,
+}: {
+  phone: string;
+  subscriberId: string;
+  subscriberSlug: string;
+}) {
+  const toNumber = normalizePhone(phone);
+  if (!toNumber.startsWith("+") || !/^\+\d{11,15}$/.test(toNumber)) {
+    throw new Error(`Invalid phone number format after normalization: ${toNumber}`);
+  }
+
+  const voiceChannel = await prisma.subscriberChannel.findFirst({
+    where: {
+      channel: "VOICE",
+      enabled: true,
+      subscriberId,
+    },
+    select: {
+      transportProvider: true,
+      aiProvider: true,
+      providerNumberE164: true,
+      providerAgentIdOutbound: true,
+    },
+  });
+
+  if (!voiceChannel) {
+    throw new Error("Call channel unavailable");
+  }
+
+  if (voiceChannel.aiProvider !== "RETELL") {
+    console.warn(
+      "[chat] aiProvider is not RETELL for outbound call; defaulting to Retell for now",
+      {
+        subscriberSlug,
+        aiProvider: voiceChannel.aiProvider,
+      }
+    );
+    // TODO: route to the correct AI provider when multiple are supported.
+  }
+
+  if (!voiceChannel.providerNumberE164) {
+    throw new Error("Missing providerNumberE164 for subscriber");
+  }
+
+  if (!voiceChannel.providerAgentIdOutbound) {
+    throw new Error("Missing providerAgentIdOutbound for subscriber");
+  }
+
+  if (
+    voiceChannel.transportProvider !== "RETELL" &&
+    voiceChannel.transportProvider !== "TWILIO"
+  ) {
+    console.warn("[chat] Unexpected transportProvider for VOICE", {
+      subscriberSlug,
+      transportProvider: voiceChannel.transportProvider,
+    });
+  }
+
+  await createRetellOutboundCall({
+    fromNumber: voiceChannel.providerNumberE164,
+    toNumber,
+    agentId: voiceChannel.providerAgentIdOutbound,
+    dynamicVariables: {
+      call_type: "outbound",
+    },
+  });
+}
 
 // Simple Rocket Agent web chat endpoint
 router.post("/chat", async (req, res) => {
@@ -129,8 +201,11 @@ router.post("/chat", async (req, res) => {
     // 3) If there was a CALL_REQUEST, trigger the outbound call in the background
     if (phoneForCall) {
       console.log("CALL_REQUEST detected from chat. Number:", phoneForCall);
-      // TODO: use the subscriber's VOICE channel config for outbound calls.
-      createRetellCallFromChat(phoneForCall).catch((err) => {
+      triggerOutboundCallFromChat({
+        phone: phoneForCall,
+        subscriberId: chatChannel.subscriberId,
+        subscriberSlug,
+      }).catch((err) => {
         console.error(
           "Failed to trigger Retell call from chat:",
           err?.response?.data || err.message
