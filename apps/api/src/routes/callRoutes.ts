@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { createRetellOutboundCall } from "../services/retellService";
+import { buildHistorySummary } from "../services/historySummaryService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
@@ -77,12 +78,21 @@ router.post("/call", async (req, res) => {
       });
     }
 
+    const historySummary = await buildHistorySummary({
+      subscriberId: voiceChannel.subscriberId,
+      phoneNumber: toNumber,
+      channel: "VOICE",
+      maxInteractions: 3,
+      lookbackMonths: 6,
+    });
+
     const data = await createRetellOutboundCall({
       fromNumber: voiceChannel.providerNumberE164,
       toNumber,
       agentId: voiceChannel.providerAgentIdOutbound,
       dynamicVariables: {
         call_type: "outbound",
+        ...(historySummary ? { history_summary: historySummary } : {}),
       },
     });
 
@@ -110,6 +120,7 @@ router.post("/call", async (req, res) => {
             providerCallId,
             fromNumberE164: voiceChannel.providerNumberE164,
             toNumberE164: toNumber,
+            summary: historySummary || null,
           },
         });
       }

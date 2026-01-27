@@ -18,13 +18,13 @@ src/routes/
 
 twilioWebhooks.ts = Twilio inbound webhooks (SMS is implemented end-to-end)
 
-callRoutes.ts = outbound “call me” endpoint (currently env-based)
+callRoutes.ts = outbound “call me” endpoint (DB-aware, tenant-scoped)
 
-chatRoutes.ts = web chat endpoints (currently not fully tenant/channel-aware)
+chatRoutes.ts = web chat endpoints (tenant/channel-aware)
 
 widgetConfig.ts = widget config endpoint (DB-driven per subscriber)
 
-src/services/retellService.ts = helper(s) for Retell outbound call (currently env-based)
+src/services/retellService.ts = helper(s) for Retell outbound call (now supports DB-configured outbound)
 
 scripts/seed/ = seed scripts (idempotent upserts)
 
@@ -198,6 +198,8 @@ end event message with duration/status
 
 Ensure the correct Retell voice agent id is used from DB (SubscriberChannel.providerAgentIdOutbound/providerAgentIdInbound), not hardcoded/env
 
+Status: In progress. Retell voice webhook persists call_started/call_ended/call_analyzed and resolves inbound by called number.
+
 Goal 2: Make WEB CHAT tenant/channel-aware + log Interactions like SMS (DONE)
 
 Update chatRoutes.ts so that the request identifies which tenant it is for (DONE)
@@ -222,7 +224,7 @@ The “call me” button DOES call your API:
 
 The website JS posts to https://rocketagent.onrender.com/call
 
-Current callRoutes.ts uses env-based Retell config (RETELL_FROM_NUMBER / RETELL_AGENT_ID pattern).
+callRoutes.ts now uses DB-based VOICE config (providerNumberE164 + providerAgentIdOutbound) and creates Interactions on outbound call_id.
 
 Future direction to align with DB:
 
@@ -345,12 +347,12 @@ voice webhook route(s) (wherever voice inbound is currently handled)
 
 Refactor callRoutes.ts to:
 
-accept a subscriber identifier (slug)
+accept a subscriber identifier (slug) (DONE)
 
-resolve VOICE channel from DB
+resolve VOICE channel from DB (DONE)
 
-use DB-based from number + Retell voice agent id
+use DB-based from number + Retell voice agent id (DONE)
 
-log Interaction and messages/events
+log Interaction and messages/events (DONE)
 
 END OF BOOTSTRAP

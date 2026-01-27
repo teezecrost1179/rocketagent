@@ -47,29 +47,51 @@ router.post("/retell/voice-webhook", async (req, res) => {
 
     const direction = mapDirection(call.direction);
 
-    const channelMatchWhere =
-      call.direction && call.direction.toLowerCase() === "outbound"
-        ? { providerAgentIdOutbound: call.agent_id }
-        : call.direction && call.direction.toLowerCase() === "inbound"
-        ? { providerAgentIdInbound: call.agent_id }
-        : {
-            OR: [
-              { providerAgentIdOutbound: call.agent_id },
-              { providerAgentIdInbound: call.agent_id },
-            ],
-          };
+    let matchingChannels = [];
 
-    const matchingChannels = await prisma.subscriberChannel.findMany({
-      where: {
-        channel: "VOICE",
-        enabled: true,
-        ...channelMatchWhere,
-      },
-      select: {
-        id: true,
-        subscriberId: true,
-      },
-    });
+    if (call.direction && call.direction.toLowerCase() === "inbound") {
+      if (!call.to_number) {
+        console.warn("[Retell voice webhook] Missing to_number for inbound call", {
+          event,
+          callId: call.call_id,
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      matchingChannels = await prisma.subscriberChannel.findMany({
+        where: {
+          channel: "VOICE",
+          enabled: true,
+          providerNumberE164: call.to_number,
+        },
+        select: {
+          id: true,
+          subscriberId: true,
+        },
+      });
+    } else {
+      const channelMatchWhere =
+        call.direction && call.direction.toLowerCase() === "outbound"
+          ? { providerAgentIdOutbound: call.agent_id }
+          : {
+              OR: [
+                { providerAgentIdOutbound: call.agent_id },
+                { providerAgentIdInbound: call.agent_id },
+              ],
+            };
+
+      matchingChannels = await prisma.subscriberChannel.findMany({
+        where: {
+          channel: "VOICE",
+          enabled: true,
+          ...channelMatchWhere,
+        },
+        select: {
+          id: true,
+          subscriberId: true,
+        },
+      });
+    }
 
     if (matchingChannels.length === 0) {
       console.warn("[Retell voice webhook] No matching VOICE channel", {
