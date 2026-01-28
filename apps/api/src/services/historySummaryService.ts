@@ -83,9 +83,10 @@ async function callOpenAiSummary(input: string): Promise<string | null> {
 
   const systemPrompt =
     "You summarize prior customer interactions for an AI receptionist. " +
-    "Write a concise, factual summary of the caller's needs, preferences, and outcomes. " +
-    "Do not add new facts. Keep it under 10 sentences. " +
-    "After summarizing, apply the redaction rules exactly.";
+    "Write a factual summary that captures: the caller's intent, key details, and any decisions/outcomes. " +
+    "If multiple interactions are provided, include 1-2 bullet points per interaction. " +
+    "Do not add new facts. Avoid meta-commentary about redaction or privacy. " +
+    "After summarizing, apply the redaction rules exactly to the content.";
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
