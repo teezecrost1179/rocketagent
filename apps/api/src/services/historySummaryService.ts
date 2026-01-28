@@ -46,6 +46,15 @@ function buildLookbackDate(months: number) {
   return d;
 }
 
+function formatDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function daysAgo(date: Date) {
+  const ms = Date.now() - date.getTime();
+  return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+}
+
 function normalizeText(text: string) {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -165,7 +174,10 @@ export async function buildHistorySummary({
       !!lastMessageAt &&
       interaction.updatedAt >= lastMessageAt;
 
-    const header = `Interaction (${interaction.direction}) ${interaction.startedAt.toISOString()}`;
+    const ageDays = daysAgo(interaction.startedAt);
+    const header = `Interaction: ${channel} • ${interaction.direction} • ${formatDate(
+      interaction.startedAt
+    )} (${ageDays} days ago)`;
     sections.push(header);
 
     if (summaryIsFresh && interaction.summary) {
