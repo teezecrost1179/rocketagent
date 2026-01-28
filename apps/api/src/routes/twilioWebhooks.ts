@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma"; // <-- adjust path if needed
 import { Router } from "express";
 import Twilio from "twilio";
+import { buildHistorySummary } from "../services/historySummaryService";
 
 
 const router = Router();
@@ -118,6 +119,7 @@ async function getRetellReplyWithRecovery({
   subscriberId,
   from,
   to,
+  historySummary,
 }: {
   interactionId: string;
   existingChatId: string | null;
@@ -127,6 +129,7 @@ async function getRetellReplyWithRecovery({
   subscriberId: string;
   from: string;
   to: string;
+  historySummary?: string | null;
 }): Promise<{ chatId: string; lastAgentMsg: string | null; usedRecovery: boolean }> {
   // 0) Start with whatever we already have stored on the Interaction
   let chatId = existingChatId;
@@ -143,6 +146,9 @@ async function getRetellReplyWithRecovery({
       body: JSON.stringify({
         agent_id: retellChatAgentId,
         metadata: { subscriberId, from, to, interactionId },
+        ...(historySummary
+          ? { retell_llm_dynamic_variables: { history_summary: historySummary } }
+          : {}),
       }),
     });
 
@@ -395,7 +401,16 @@ router.post(
         },
         });
 
+        let historySummary: string | null = null;
         if (!interaction) {
+            historySummary = await buildHistorySummary({
+                subscriberId: smsChannel.subscriberId,
+                phoneNumber: From,
+                channel: "SMS",
+                maxInteractions: 3,
+                lookbackMonths: 6,
+            });
+
             interaction = await prisma.interaction.create({
                 data: {
                 subscriberId: smsChannel.subscriberId,
@@ -406,6 +421,7 @@ router.post(
                 fromNumberE164: From,
                 toNumberE164: To,
                 providerConversationId: null, // <-- IMPORTANT
+                summary: historySummary || null,
                 },
                 select: {
                 id: true,
@@ -506,6 +522,7 @@ router.post(
                 subscriberId: smsChannel.subscriberId,
                 from: From,
                 to: To,
+                historySummary,
             });
 
             if (usedRecovery) {
