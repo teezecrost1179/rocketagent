@@ -41,9 +41,15 @@ router.post("/retell/voice-inbound", async (req, res) => {
       lookbackMonths: 6,
     });
 
-    return res.status(200).json({
+    const responsePayload = {
       dynamic_variables: historySummary ? { history_summary: historySummary } : {},
+    };
+
+    console.log("[Retell inbound voice webhook] response", {
+      hasHistorySummary: !!historySummary,
     });
+
+    return res.status(200).json(responsePayload);
   } catch (err) {
     console.error("[Retell inbound voice webhook] error", err);
     return res.status(500).json({ ok: false });
