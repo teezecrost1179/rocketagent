@@ -153,6 +153,7 @@ model Interaction {
 
   fromNumberE164 String?
   toNumberE164   String?
+  contactPhoneE164 String?
   contactName    String?
   contactEmail   String?
 
