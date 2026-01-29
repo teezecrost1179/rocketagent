@@ -24,6 +24,8 @@ chatRoutes.ts = web chat endpoints (tenant/channel-aware)
 
 widgetConfig.ts = widget config endpoint (DB-driven per subscriber)
 
+chatRoutes.ts also exposes /chat/contact-phone for widget UX
+
 src/services/retellService.ts = helper(s) for Retell outbound + chat (DB-configured, dynamic vars)
 
 src/services/historySummaryService.ts = builds redacted history summaries (OpenAI) for voice/SMS/chat
@@ -53,6 +55,8 @@ slug (unique tenant key)
 Widget fields: widgetTitle, widgetSubtitle, widgetGreeting, widgetAvatarUrl, widgetEnabled, offlineMessage
 
 Public contact fields (just added + migrated): websiteUrl, publicPhoneE164
+
+allowedDomains: domain allowlist for widget-config + chat access
 
 SubscriberChannel
 
@@ -227,6 +231,8 @@ Retell chat_id stored on Interaction.providerConversationId (DONE)
 Widget stores chatId in localStorage per subscriber (DONE)
 
 Widget stores interactionId in localStorage and can query contact phone (DONE)
+
+Widget-config + chat routes enforce allowedDomains by Origin/Referer (DONE)
 
 Goal 3: Outbound “Call me” route refactor (optional but recommended soon)
 

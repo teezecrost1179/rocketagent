@@ -1,6 +1,20 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma"; // adjust path if needed
 
+function extractHost(value?: string) {
+  if (!value) return "";
+  try {
+    return new URL(value).host.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isAllowedDomain(allowedDomains: string[] | null | undefined, host: string) {
+  if (!allowedDomains || allowedDomains.length === 0) return true;
+  return allowedDomains.map((d) => d.toLowerCase()).includes(host);
+}
+
 const router = Router();
 
 router.get("/widget-config", async (req, res) => {
@@ -21,11 +35,23 @@ router.get("/widget-config", async (req, res) => {
         widgetGreeting: true,
         widgetAvatarUrl: true,
         offlineMessage: true,
+        allowedDomains: true,
       },
     });
 
     // Hide existence details and prevent cross-tenant “probing”
     if (!s || s.status !== "active" || s.widgetEnabled === false) {
+      return res.status(404).json({});
+    }
+
+    // Domain allowlist: use Origin or Referer, log and allow if missing.
+    const originHost = extractHost(req.headers.origin as string | undefined);
+    const refererHost = extractHost(req.headers.referer as string | undefined);
+    const host = originHost || refererHost;
+    if (!host) {
+      console.warn("[widget-config] Missing Origin/Referer", { subscriber });
+    } else if (!isAllowedDomain(s.allowedDomains, host)) {
+      console.warn("[widget-config] Origin not allowed", { subscriber, host });
       return res.status(404).json({});
     }
 

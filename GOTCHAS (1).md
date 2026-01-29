@@ -248,3 +248,11 @@ Verify with migrate diff
 Avoid clever migrations
 
 Prefer explicit data over inferred behavior
+
+Domain allowlist notes
+
+Subscriber.allowedDomains controls access to /widget-config and /chat.
+
+We use Origin header first, then Referer.
+
+If both are missing, we log a warning and allow the request.

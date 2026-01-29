@@ -9,6 +9,20 @@ import { normalizePhone } from "../utils/phone";
 
 const router = Router();
 
+function extractHost(value?: string) {
+  if (!value) return "";
+  try {
+    return new URL(value).host.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isAllowedDomain(allowedDomains: string[] | null | undefined, host: string) {
+  if (!allowedDomains || allowedDomains.length === 0) return true;
+  return allowedDomains.map((d) => d.toLowerCase()).includes(host);
+}
+
 // Contact phone lookup for widget UX
 router.get("/chat/contact-phone", async (req, res) => {
   try {
@@ -128,10 +142,26 @@ router.post("/chat", async (req, res) => {
         subscriberId: true,
         aiProvider: true,
         providerInboxId: true,
+        subscriber: {
+          select: {
+            allowedDomains: true,
+          },
+        },
       },
     });
 
     if (!chatChannel) {
+      return res.status(404).json({ error: "Chat channel unavailable" });
+    }
+
+    // Domain allowlist: use Origin or Referer, log and allow if missing.
+    const originHost = extractHost(req.headers.origin as string | undefined);
+    const refererHost = extractHost(req.headers.referer as string | undefined);
+    const host = originHost || refererHost;
+    if (!host) {
+      console.warn("[chat] Missing Origin/Referer", { subscriberSlug, routingSlug });
+    } else if (!isAllowedDomain(chatChannel.subscriber.allowedDomains, host)) {
+      console.warn("[chat] Origin not allowed", { subscriberSlug, routingSlug, host });
       return res.status(404).json({ error: "Chat channel unavailable" });
     }
 
