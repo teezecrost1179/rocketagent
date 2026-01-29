@@ -1,49 +1,10 @@
 import axios from "axios";
-import {
-  RETELL_API_KEY,
-  RETELL_FROM_NUMBER,
-  RETELL_AGENT_ID,
-  RETELL_CHAT_AGENT_ID,
-} from "../config/env";
+import { RETELL_API_KEY } from "../config/env";
 import { normalizePhone } from "../utils/phone";
 
 /**
  * Outbound call triggered from the form (/call)
  */
-export async function createRetellCallFromForm(phone: string, name?: string) {
-  const toNumber = normalizePhone(phone);
-
-  // Basic validation: must be E.164-ish, e.g. +12045551234
-  if (!toNumber.startsWith("+") || !/^\+\d{11,15}$/.test(toNumber)) {
-    throw new Error(`Invalid phone number format after normalization: ${toNumber}`);
-  }
-
-  return createRetellOutboundCall({
-    fromNumber: RETELL_FROM_NUMBER,
-    toNumber,
-    agentId: RETELL_AGENT_ID || undefined,
-    dynamicVariables: {
-      call_type: "outbound",
-    },
-  });
-}
-
-/**
- * Outbound call triggered from chat when CALL_REQUEST is detected
- */
-export async function createRetellCallFromChat(phone: string) {
-  const toNumber = normalizePhone(phone);
-
-  await createRetellOutboundCall({
-    fromNumber: RETELL_FROM_NUMBER,
-    toNumber,
-    agentId: RETELL_AGENT_ID || undefined,
-    dynamicVariables: {
-      call_type: "outbound",
-    },
-  });
-}
-
 export async function createRetellOutboundCall({
   fromNumber,
   toNumber,
@@ -84,10 +45,12 @@ export async function createRetellOutboundCall({
 export async function getRetellChatCompletion(
   message: string,
   chatId?: string,
-  agentId?: string
+  agentId?: string,
+  historySummary?: string,
+  dynamicVariables?: Record<string, string>
 ): Promise<{ chatId: string; fullReply: string }> {
   let chat_id = chatId;
-  const resolvedAgentId = agentId || RETELL_CHAT_AGENT_ID;
+  const resolvedAgentId = agentId;
 
   // 1) Create chat if needed
   if (!chat_id) {
@@ -99,6 +62,11 @@ export async function getRetellChatCompletion(
       "https://api.retellai.com/create-chat",
       {
         agent_id: resolvedAgentId,
+        ...(dynamicVariables
+          ? { retell_llm_dynamic_variables: dynamicVariables }
+          : historySummary
+          ? { retell_llm_dynamic_variables: { history_summary: historySummary } }
+          : {}),
       },
       {
         headers: {

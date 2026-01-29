@@ -1,7 +1,8 @@
-import { prisma } from "../lib/prisma"; // <-- adjust path if needed
 import { Router } from "express";
-import Twilio from "twilio";
+import { RETELL_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } from "../config/env";
+import { prisma } from "../lib/prisma"; // <-- adjust path if needed
 import { buildHistorySummary } from "../services/historySummaryService";
+import Twilio from "twilio";
 
 
 const router = Router();
@@ -57,10 +58,7 @@ async function sendSmsAndPersist({
   interactionId: string;
   rid: string;
 }) {
-  const twilioClient = Twilio(
-    process.env.TWILIO_ACCOUNT_SID!,
-    process.env.TWILIO_AUTH_TOKEN!
-  );
+  const twilioClient = Twilio(TWILIO_ACCOUNT_SID!, TWILIO_AUTH_TOKEN!);
 
   const outboundMessage = await twilioClient.messages.create({
     from: fromTwilioNumber,
@@ -462,7 +460,7 @@ router.post(
 
 
         // --- A1: get AI reply from Retell (do NOT send SMS yet) ---
-        const retellApiKey = process.env.RETELL_API_KEY;
+        const retellApiKey = RETELL_API_KEY;
         const retellChatAgentId = smsChannel.providerInboxId; // <-- store chat agent id here
 
         if (!retellApiKey) {

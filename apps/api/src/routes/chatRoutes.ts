@@ -4,9 +4,32 @@ import {
   createRetellOutboundCall,
 } from "../services/retellService";
 import { prisma } from "../lib/prisma";
+import { buildHistorySummary } from "../services/historySummaryService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
+
+// Contact phone lookup for widget UX
+router.get("/chat/contact-phone", async (req, res) => {
+  try {
+    const interactionId = (req.query.interactionId as string) || "";
+    if (!interactionId) {
+      return res.json({ contactPhoneE164: null });
+    }
+
+    const interaction = await prisma.interaction.findUnique({
+      where: { id: interactionId },
+      select: { contactPhoneE164: true },
+    });
+
+    return res.json({
+      contactPhoneE164: interaction?.contactPhoneE164 || null,
+    });
+  } catch (err) {
+    console.error("contact-phone lookup error:", err);
+    return res.status(500).json({ contactPhoneE164: null });
+  }
+});
 
 async function triggerOutboundCallFromChat({
   phone,
@@ -82,7 +105,7 @@ async function triggerOutboundCallFromChat({
 // Simple Rocket Agent web chat endpoint
 router.post("/chat", async (req, res) => {
   try {
-    const { message, chatId, subscriber } = req.body;
+    const { message, chatId, subscriber, interactionId } = req.body;
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Missing or invalid 'message' field" });
@@ -128,6 +151,7 @@ router.post("/chat", async (req, res) => {
       return res.status(500).json({ error: "Chat channel unavailable" });
     }
 
+    // Prefer chatId for continuity; fall back to interactionId for phone lookup only.
     const existingInteraction = chatId
       ? await prisma.interaction.findFirst({
           where: {
@@ -138,26 +162,66 @@ router.post("/chat", async (req, res) => {
           select: {
             id: true,
             providerConversationId: true,
+            contactPhoneE164: true,
           },
         })
-      : null;
-
-    const interaction = existingInteraction
-      ? existingInteraction
-      : await prisma.interaction.create({
-          data: {
+      : interactionId
+      ? await prisma.interaction.findFirst({
+          where: {
+            id: interactionId,
             subscriberId: chatChannel.subscriberId,
             channel: "CHAT",
-            direction: "INBOUND",
-            status: "STARTED",
-            provider: "RETELL",
-            providerConversationId: chatId || null,
           },
           select: {
             id: true,
             providerConversationId: true,
+            contactPhoneE164: true,
           },
-        });
+        })
+      : null;
+
+    const interaction =
+      existingInteraction ||
+      (await prisma.interaction.create({
+        data: {
+          subscriberId: chatChannel.subscriberId,
+          channel: "CHAT",
+          direction: "INBOUND",
+          status: "STARTED",
+          provider: "RETELL",
+          providerConversationId: chatId || null,
+        },
+        select: {
+          id: true,
+          providerConversationId: true,
+          contactPhoneE164: true,
+        },
+      }));
+
+    // Use stored contact phone (set via Retell function) for history lookups.
+    const phoneForHistory = interaction.contactPhoneE164;
+    let historySummary: string | null = null;
+
+    // Build history summary only for new chats (no existing Retell chat_id yet).
+    if (phoneForHistory && !interaction.providerConversationId) {
+      historySummary = await buildHistorySummary({
+        subscriberId: chatChannel.subscriberId,
+        phoneNumber: phoneForHistory,
+        channels: ["VOICE", "SMS", "CHAT"],
+        maxInteractions: 3,
+        lookbackMonths: 6,
+      });
+    }
+
+    // Pass dynamic context on new chat creation only.
+    const dynamicVariables =
+      !interaction.providerConversationId
+        ? {
+            interaction_id: interaction.id,
+            ...(phoneForHistory ? { contact_phone_e164: phoneForHistory } : {}),
+            ...(historySummary ? { history_summary: historySummary } : {}),
+          }
+        : undefined;
 
     await prisma.interactionMessage.create({
       data: {
@@ -171,13 +235,18 @@ router.post("/chat", async (req, res) => {
     const { chatId: newChatId, fullReply } = await getRetellChatCompletion(
       message,
       interaction.providerConversationId || undefined,
-      chatChannel.providerInboxId
+      chatChannel.providerInboxId,
+      historySummary || undefined,
+      dynamicVariables
     );
 
     if (interaction.providerConversationId !== newChatId) {
       await prisma.interaction.update({
         where: { id: interaction.id },
-        data: { providerConversationId: newChatId },
+        data: {
+          providerConversationId: newChatId,
+          ...(historySummary ? { summary: historySummary } : {}),
+        },
       });
     }
 
@@ -224,6 +293,7 @@ router.post("/chat", async (req, res) => {
     return res.json({
       chatId: newChatId,
       reply,
+      interactionId: interaction.id,
     });
   } catch (err: any) {
     console.error(

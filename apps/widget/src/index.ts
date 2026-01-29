@@ -64,6 +64,12 @@
     return "rcw_chat_id:" + slug;
   }
 
+  function getInteractionStorageKey(subscriber?: string): string | null {
+    const slug = (subscriber || "").trim().toLowerCase();
+    if (!slug) return null;
+    return "rcw_interaction_id:" + slug;
+  }
+
   function loadChatId(subscriber?: string): string | null {
     const key = getChatStorageKey(subscriber);
     if (!key) return null;
@@ -79,6 +85,27 @@
     if (!key) return;
     try {
       if (chatId) localStorage.setItem(key, chatId);
+      else localStorage.removeItem(key);
+    } catch {
+      // Ignore storage errors (private mode, blocked, etc.)
+    }
+  }
+
+  function loadInteractionId(subscriber?: string): string | null {
+    const key = getInteractionStorageKey(subscriber);
+    if (!key) return null;
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveInteractionId(subscriber: string | undefined, interactionId: string | null) {
+    const key = getInteractionStorageKey(subscriber);
+    if (!key) return;
+    try {
+      if (interactionId) localStorage.setItem(key, interactionId);
       else localStorage.removeItem(key);
     } catch {
       // Ignore storage errors (private mode, blocked, etc.)
@@ -467,6 +494,9 @@
     applyPosition(root, panel, options.position, options.offsetX, options.offsetY);
 
     let chatId: string | null = loadChatId(options.subscriber);
+    let interactionId: string | null = loadInteractionId(options.subscriber);
+    let phonePromptShown = false;
+    let contactPhoneKnown = false;
     let sending = false;
 
     function appendMessage(role: "user" | "agent", text: string) {
@@ -515,7 +545,9 @@
 
     function resetSession() {
       chatId = null;
+      interactionId = null;
       saveChatId(options.subscriber, null);
+      saveInteractionId(options.subscriber, null);
       messagesEl.innerHTML = "";
       if (options.greeting) appendMessage("agent", options.greeting);
       setStatus("");
@@ -547,6 +579,7 @@
       const payload: any = {
         message: text,
         chatId: chatId,
+        interactionId: interactionId,
         subscriber: options.subscriber || undefined
       };
 
@@ -575,6 +608,8 @@
 
           chatId = (result.data && result.data.chatId) || chatId;
           saveChatId(options.subscriber, chatId);
+          interactionId = (result.data && result.data.interactionId) || interactionId;
+          saveInteractionId(options.subscriber, interactionId);
           const reply = (result.data && result.data.reply) || "(No response)";
           appendMessage("agent", reply);
         })
@@ -605,6 +640,14 @@
       } else {
         root.classList.add("rcw-open");
         input.focus();
+        // Prompt for phone only once, when we don't already have an interaction id.
+        if (!phonePromptShown && !interactionId && !options.offline) {
+          appendMessage(
+            "agent",
+            "If you share your phone number, I can check past conversations and remember this one."
+          );
+          phonePromptShown = true;
+        }
       }
     });
 
@@ -625,6 +668,33 @@
 
     // Initial greeting
     if (options.greeting) appendMessage("agent", options.greeting);
+
+    // Look up contact phone and show prompt only if we don't have one.
+    if (interactionId && !options.offline) {
+      const contactUrl =
+        normalizeApiBase(options.apiBase) +
+        "/chat/contact-phone?interactionId=" +
+        encodeURIComponent(interactionId);
+      fetch(contactUrl)
+        .then((resp) => resp.json())
+        .then((data) => {
+          contactPhoneKnown = !!(data && data.contactPhoneE164);
+          if (!contactPhoneKnown && !phonePromptShown) {
+            appendMessage(
+              "agent",
+              "If you share your phone number, I can check past conversations and remember this one."
+            );
+            phonePromptShown = true;
+          }
+        })
+        .catch(() => {});
+    } else if (!interactionId && !options.offline) {
+      appendMessage(
+        "agent",
+        "If you share your phone number, I can check past conversations and remember this one."
+      );
+      phonePromptShown = true;
+    }
 
     // Offline mode at boot (e.g. no apiBase)
     if (options.offline || !normalizeApiBase(options.apiBase)) {

@@ -1,9 +1,11 @@
+import { OPENAI_API_KEY } from "../config/env";
 import { prisma } from "../lib/prisma";
 
 type HistorySummaryOptions = {
   subscriberId: string;
   phoneNumber: string;
-  channel: "VOICE" | "SMS";
+  channel?: "VOICE" | "SMS" | "CHAT";
+  channels?: Array<"VOICE" | "SMS" | "CHAT">;
   maxInteractions?: number;
   lookbackMonths?: number;
   maxMessagesPerInteraction?: number;
@@ -75,7 +77,7 @@ function roleLabel(role: string) {
 }
 
 async function callOpenAiSummary(input: string): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = OPENAI_API_KEY;
   if (!apiKey) {
     console.warn("[historySummary] Missing OPENAI_API_KEY");
     return null;
@@ -122,18 +124,24 @@ export async function buildHistorySummary({
   subscriberId,
   phoneNumber,
   channel,
+  channels,
   maxInteractions = DEFAULT_MAX_INTERACTIONS,
   lookbackMonths = DEFAULT_LOOKBACK_MONTHS,
   maxMessagesPerInteraction = DEFAULT_MAX_MESSAGES_PER_INTERACTION,
 }: HistorySummaryOptions): Promise<string | null> {
   const since = buildLookbackDate(lookbackMonths);
+  const channelList = channels || (channel ? [channel] : undefined);
 
   const interactions = await prisma.interaction.findMany({
     where: {
       subscriberId,
-      channel,
+      ...(channelList ? { channel: { in: channelList } } : {}),
       startedAt: { gte: since },
-      OR: [{ fromNumberE164: phoneNumber }, { toNumberE164: phoneNumber }],
+      OR: [
+        { fromNumberE164: phoneNumber },
+        { toNumberE164: phoneNumber },
+        { contactPhoneE164: phoneNumber },
+      ],
     },
     orderBy: { startedAt: "desc" },
     take: maxInteractions,
@@ -141,6 +149,7 @@ export async function buildHistorySummary({
       id: true,
       startedAt: true,
       direction: true,
+      channel: true,
       summary: true,
       updatedAt: true,
     },
@@ -176,7 +185,7 @@ export async function buildHistorySummary({
       interaction.updatedAt >= lastMessageAt;
 
     const ageDays = daysAgo(interaction.startedAt);
-    const header = `Interaction: ${channel} • ${interaction.direction} • ${formatDate(
+    const header = `Interaction: ${interaction.channel} • ${interaction.direction} • ${formatDate(
       interaction.startedAt
     )} (${ageDays} days ago)`;
     sections.push(header);

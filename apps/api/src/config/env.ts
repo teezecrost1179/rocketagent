@@ -1,4 +1,5 @@
-export const RETELL_FROM_NUMBER = process.env.RETELL_FROM_NUMBER!;
 export const RETELL_API_KEY = process.env.RETELL_API_KEY!;
-export const RETELL_AGENT_ID = process.env.RETELL_AGENT_ID;
-export const RETELL_CHAT_AGENT_ID = process.env.RETELL_CHAT_AGENT_ID!;
+export const RETELL_FUNCTION_SECRET = process.env.RETELL_FUNCTION_SECRET;
+export const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+export const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+export const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
