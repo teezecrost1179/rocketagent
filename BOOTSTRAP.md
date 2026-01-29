@@ -24,7 +24,9 @@ chatRoutes.ts = web chat endpoints (tenant/channel-aware)
 
 widgetConfig.ts = widget config endpoint (DB-driven per subscriber)
 
-src/services/retellService.ts = helper(s) for Retell outbound call (now supports DB-configured outbound)
+src/services/retellService.ts = helper(s) for Retell outbound + chat (DB-configured, dynamic vars)
+
+src/services/historySummaryService.ts = builds redacted history summaries (OpenAI) for voice/SMS/chat
 
 scripts/seed/ = seed scripts (idempotent upserts)
 
@@ -76,7 +78,7 @@ For SMS: used as the “thread”
 
 providerConversationId is used to store Retell chat_id for continuity across messages
 
-Also stores fromNumberE164, toNumberE164, timestamps/status
+Also stores fromNumberE164, toNumberE164, contactPhoneE164, timestamps/status
 
 InteractionMessage
 
@@ -116,6 +118,10 @@ Retell
 
 RETELL_API_KEY=...
 
+RETELL_FUNCTION_SECRET=... (used for custom function webhook verification)
+
+OPENAI_API_KEY=... (history summaries)
+
 Twilio (needed for sending SMS + webhook validation if you add it later)
 
 TWILIO_ACCOUNT_SID=...
@@ -123,6 +129,7 @@ TWILIO_ACCOUNT_SID=...
 TWILIO_AUTH_TOKEN=...
 
 NOTE: You currently still have some env vars like RETELL_FROM_NUMBER, RETELL_AGENT_ID, RETELL_CHAT_AGENT_ID from earlier work. They are used by the current outbound call / older patterns, and may be phased out as we move channel config into the DB.
+NOTE: Legacy RETELL_FROM_NUMBER / RETELL_CHAT_AGENT_ID are no longer used in code (safe to remove).
 
 WHAT IS DONE (SMS IS “FINISH LINE” LEVEL)
 File: apps/api/src/routes/twilioWebhooks.ts
@@ -199,6 +206,7 @@ end event message with duration/status
 Ensure the correct Retell voice agent id is used from DB (SubscriberChannel.providerAgentIdOutbound/providerAgentIdInbound), not hardcoded/env
 
 Status: In progress. Retell voice webhook persists call_started/call_ended/call_analyzed and resolves inbound by called number.
+Status: In progress. Inbound Call Webhook (Retell) now injects history_summary via /retell/voice-inbound.
 
 Goal 2: Make WEB CHAT tenant/channel-aware + log Interactions like SMS (DONE)
 
@@ -218,6 +226,8 @@ Retell chat_id stored on Interaction.providerConversationId (DONE)
 
 Widget stores chatId in localStorage per subscriber (DONE)
 
+Widget stores interactionId in localStorage and can query contact phone (DONE)
+
 Goal 3: Outbound “Call me” route refactor (optional but recommended soon)
 
 The “call me” button DOES call your API:
@@ -225,6 +235,8 @@ The “call me” button DOES call your API:
 The website JS posts to https://rocketagent.onrender.com/call
 
 callRoutes.ts now uses DB-based VOICE config (providerNumberE164 + providerAgentIdOutbound) and creates Interactions on outbound call_id.
+
+Outbound calls attach history_summary (last 3 interactions / 6 months).
 
 Future direction to align with DB:
 
@@ -323,15 +335,19 @@ Trial Twilio adds “Sent from your Twilio trial account” banner (normal).
 
 NEXT WORK SESSION CHECKLIST (what Codex should do next)
 
-Add Interaction summaries
+History-aware context (DONE for voice/SMS/chat)
 
-Decide summary provider (OpenAI vs Retell) and storage location.
+- Voice outbound/inbound: history_summary injected via dynamic variables.
 
-Potential storage options:
+- SMS: history_summary injected on new thread create-chat.
 
-- Interaction.summary (new field)
+- Chat: history_summary injected on new chat creation if contactPhoneE164 exists.
 
-- InteractionMessage role=SYSTEM with summary content (convention)
+Retell custom function (capture_phone) (DONE)
+
+- Endpoint: POST /retell/functions/capture-phone
+
+- Stores contactPhoneE164 and returns history_summary for chat.
 
 Read apps/api/src/routes/twilioWebhooks.ts and copy the “pattern” used for SMS:
 

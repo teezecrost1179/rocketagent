@@ -6,6 +6,8 @@
   type WidgetConfig = {
     apiBase?: string;
     subscriber?: string;
+    routingSubscriber?: string;
+    transferPreselect?: string;
 
     // Branding
     title?: string;
@@ -128,7 +130,9 @@
     const d = (s as any).dataset || {};
     return {
       apiBase: d.apiBase || "",
-      subscriber: d.subscriber || ""
+      subscriber: d.subscriber || "",
+      routingSubscriber: d.routingSubscriber || "",
+      transferPreselect: d.transferPreselect || ""
     };
   }
 
@@ -493,6 +497,7 @@
 
     applyPosition(root, panel, options.position, options.offsetX, options.offsetY);
 
+    // Branding uses subscriber; routing can be overridden separately.
     let chatId: string | null = loadChatId(options.subscriber);
     let interactionId: string | null = loadInteractionId(options.subscriber);
     let phonePromptShown = false;
@@ -580,7 +585,9 @@
         message: text,
         chatId: chatId,
         interactionId: interactionId,
-        subscriber: options.subscriber || undefined
+        subscriber: options.subscriber || undefined,
+        routingSubscriber: options.routingSubscriber || undefined,
+        transferPreselect: options.transferPreselect || undefined
       };
 
       const url = normalizeApiBase(options.apiBase) + "/chat";

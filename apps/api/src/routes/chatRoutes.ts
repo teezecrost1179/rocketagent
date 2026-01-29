@@ -105,14 +105,16 @@ async function triggerOutboundCallFromChat({
 // Simple Rocket Agent web chat endpoint
 router.post("/chat", async (req, res) => {
   try {
-    const { message, chatId, subscriber, interactionId } = req.body;
+    const { message, chatId, subscriber, interactionId, routingSubscriber, transferPreselect } =
+      req.body;
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({ error: "Missing or invalid 'message' field" });
     }
 
     const subscriberSlug = (subscriber || "").toLowerCase().trim();
-    if (!subscriberSlug) {
+    const routingSlug = (routingSubscriber || subscriber || "").toLowerCase().trim();
+    if (!subscriberSlug || !routingSlug) {
       return res.status(404).json({ error: "Chat channel unavailable" });
     }
 
@@ -120,7 +122,7 @@ router.post("/chat", async (req, res) => {
       where: {
         channel: "CHAT",
         enabled: true,
-        subscriber: { slug: subscriberSlug },
+        subscriber: { slug: routingSlug },
       },
       select: {
         subscriberId: true,
@@ -220,6 +222,7 @@ router.post("/chat", async (req, res) => {
             interaction_id: interaction.id,
             ...(phoneForHistory ? { contact_phone_e164: phoneForHistory } : {}),
             ...(historySummary ? { history_summary: historySummary } : {}),
+            ...(transferPreselect ? { transfer_preselect: transferPreselect } : {}),
           }
         : undefined;
 

@@ -72,6 +72,7 @@ model Subscriber {
   // Public-facing contact info (used in SMS warnings, etc.)
   websiteUrl      String?
   publicPhoneE164 String?
+  allowedDomains  String[]
 
   // Widget configuration (this replaces widgetConfig.ts)
   widgetTitle       String?

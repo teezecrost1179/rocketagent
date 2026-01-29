@@ -41,6 +41,7 @@ async function main() {
       widgetSubtitle: d.widgetSubtitle,
       widgetGreeting: d.widgetGreeting,
       widgetAvatarUrl: d.widgetAvatarUrl,
+      allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
     });
 
     console.log(`Seeded demo subscriber: ${d.slug}`);

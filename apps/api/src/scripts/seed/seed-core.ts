@@ -15,6 +15,7 @@ export type SeedSubscriberInput = {
   offlineMessage?: string | null;
   websiteUrl?: string;
   publicPhoneE164?: string;
+  allowedDomains?: string[];
 };
 
 // Core helper: idempotent + safe to re-run
@@ -32,6 +33,7 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     offlineMessage,
     websiteUrl,
     publicPhoneE164,
+    allowedDomains,
   } = input;
 
   // IMPORTANT: leaving undefined fields is OK; Prisma will ignore them.
@@ -48,6 +50,7 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     offlineMessage,
     websiteUrl,
     publicPhoneE164,
+    allowedDomains,
 
   };
 
@@ -73,6 +76,7 @@ async function main() {
     widgetEnabled: true,
     websiteUrl: "https://rocketsciencedesigns.com",
     publicPhoneE164: "+12048082733",
+    allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
   });
 
   // Demo gatekeeper (owns the demo Twilio number)
@@ -87,6 +91,7 @@ async function main() {
     widgetEnabled: true,
     websiteUrl: "https://rocketreception.ca",
     publicPhoneE164: "+14316005505",
+    allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
   });
 
   console.log("Core seed complete.");

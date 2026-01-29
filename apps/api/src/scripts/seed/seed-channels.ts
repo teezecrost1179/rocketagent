@@ -13,6 +13,26 @@ async function main() {
   });
 
   for (const sub of subscribers) {
+    const chatConfigBySlug: Record<string, any> = {
+      "demo-gatekeeper": {
+        providerInboxId: "agent_e993412c0a735a59ab24944ca0",
+      },
+      rocketsciencedesigns: {
+        providerInboxId: "agent_3fed5b39ade35fdc0ad1994f5b",
+      },
+      winnipegbeauty: {
+        providerInboxId: "agent_e993412c0a735a59ab24944ca0",
+      },
+      winnipegrenoking: {
+        providerInboxId: "agent_e993412c0a735a59ab24944ca0",
+      },
+      winnipegprimoaccountants: {
+        providerInboxId: "agent_e993412c0a735a59ab24944ca0",
+      },
+    };
+
+    const chatConfig = chatConfigBySlug[sub.slug] || {};
+
     await prisma.subscriberChannel.upsert({
       where: {
         subscriberId_channel: {
@@ -26,11 +46,13 @@ async function main() {
         enabled: true,
         transportProvider: "OTHER",
         aiProvider: "RETELL",
+        ...chatConfig,
       },
       update: {
         enabled: true,
         transportProvider: "OTHER",
         aiProvider: "RETELL",
+        ...chatConfig,
       },
     });
     console.log(`Upserted CHAT channel for subscriber: ${sub.slug}`);
