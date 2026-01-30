@@ -10,7 +10,8 @@ async function main() {
       widgetSubtitle: "Hair, nails, and self-care",
       widgetGreeting:
         "Hi! Welcome to Winnipeg Beauty 💅 Would you like to book an appointment or ask a question?",
-      widgetAvatarUrl: "https://rocketreception.ca/assets/winnipeg-beauty.png",
+      widgetAvatarUrl:
+        "https://rocketreception.ca/demo-winnipeg-beauty/assets/winnipeg-beauty-logo.png",
     },
     {
       slug: "winnipegrenoking",
@@ -18,7 +19,7 @@ async function main() {
       widgetSubtitle: "Kitchens, basements, and full renovations",
       widgetGreeting:
         "Hi! Thanks for calling Winnipeg Reno King. Are you looking for a quote or information on our services?",
-      widgetAvatarUrl: "https://rocketreception.ca/assets/winnipeg-reno-king.png",
+      widgetAvatarUrl: null,
     },
     {
       slug: "winnipegprimoaccountants",
@@ -26,7 +27,7 @@ async function main() {
       widgetSubtitle: "Tax, bookkeeping, and small business accounting",
       widgetGreeting:
         "Hello! You’ve reached Winnipeg Primo Accountants. How can we assist you today?",
-      widgetAvatarUrl: "https://rocketreception.ca/assets/winnipeg-primo-accountants.png",
+      widgetAvatarUrl: null,
     },
   ];
 

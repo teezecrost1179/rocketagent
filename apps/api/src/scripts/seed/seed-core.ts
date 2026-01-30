@@ -73,6 +73,7 @@ async function main() {
     widgetTitle: "Rocket Science Designs",
     widgetSubtitle: "Web, Shopify, and branding help",
     widgetGreeting: "Hi! How can we help today?",
+    widgetAvatarUrl: "https://rocketsciencedesigns.com/assets/rocket-logo-26.png",
     widgetEnabled: true,
     websiteUrl: "https://rocketsciencedesigns.com",
     publicPhoneE164: "+12048082733",
