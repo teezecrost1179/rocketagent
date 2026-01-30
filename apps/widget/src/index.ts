@@ -72,6 +72,39 @@
     return out;
   }
 
+  function normalizeHexColor(value?: string): string | null {
+    if (!value) return null;
+    const raw = value.trim().toLowerCase();
+    if (!raw) return null;
+    const hex = raw.startsWith("#") ? raw.slice(1) : raw;
+    if (hex.length === 3) {
+      if (!/^[0-9a-f]{3}$/.test(hex)) return null;
+      return "#" + hex.split("").map((c) => c + c).join("");
+    }
+    if (!/^[0-9a-f]{6}$/.test(hex)) return null;
+    return "#" + hex;
+  }
+
+  function relativeLuminance(hexColor: string): number {
+    const hex = hexColor.replace("#", "");
+    const r = parseInt(hex.slice(0, 2), 16) / 255;
+    const g = parseInt(hex.slice(2, 4), 16) / 255;
+    const b = parseInt(hex.slice(4, 6), 16) / 255;
+    const toLinear = (c: number) =>
+      c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    const rl = toLinear(r);
+    const gl = toLinear(g);
+    const bl = toLinear(b);
+    return 0.2126 * rl + 0.7152 * gl + 0.0722 * bl;
+  }
+
+  function getButtonTextColor(primaryHex?: string): string {
+    const normalized = normalizeHexColor(primaryHex || "");
+    if (!normalized) return "#f9fafb";
+    const luminance = relativeLuminance(normalized);
+    return luminance < 0.5 ? "#f3f4f6" : "#111827";
+  }
+
   function normalizeApiBase(apiBase?: string): string {
     if (!apiBase) return "";
     return apiBase.replace(/\/+$/, "");
@@ -158,60 +191,83 @@
     if (document.getElementById("rocket-chat-widget-styles")) return;
 
     const css = `
+      @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
       .rcw-root {
         position: fixed;
         z-index: 999999;
-        font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+        font-family: "Figtree","Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
         color: #f9fafb;
         --rcw-primary-color: #081d49;
         --rcw-secondary-color: #c6c6c6;
       }
       .rcw-bubble {
-        width: 52px;
-        height: 52px;
+        width: 71px;
+        height: 71px;
         background: transparent;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         color: var(--rcw-primary-color);
+        transition: transform 160ms ease, filter 160ms ease;
+        animation: rcw-float 4s ease-in-out infinite;
+        z-index: 1;
+      }
+      .rcw-bubble:hover {
+        transform: translateY(-2px);
+        filter: drop-shadow(0 6px 12px rgba(0,0,0,0.18));
+        animation-play-state: paused;
+      }
+      .rcw-root.rcw-open .rcw-bubble {
+        animation-play-state: paused;
       }
       .rcw-bubble-icon {
-        width: 36px;
-        height: 36px;
+        width: 46px;
+        height: 46px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
       }
       .rcw-bubble-icon svg {
-        width: 36px;
-        height: 36px;
+        width: 46px;
+        height: 46px;
         display: block;
         filter: drop-shadow(0 6px 12px rgba(0,0,0,0.35));
+      }
+      @keyframes rcw-float {
+        0% { transform: translate(0, 0); }
+        25% { transform: translate(2px, -2px); }
+        50% { transform: translate(0, -3px); }
+        75% { transform: translate(-2px, -1px); }
+        80% { transform: translate(0, 0); }
+        100% { transform: translate(0, 0); }
       }
       .rcw-panel {
         position: absolute;
         width: 340px;
         max-width: calc(100vw - 40px);
-        height: 420px;
+        height: 470px;
         max-height: calc(100vh - 80px);
         border-radius: 16px;
         overflow: hidden;
         background: radial-gradient(circle at top left, #111827 0, #020617 55%);
         box-shadow: 0 20px 40px rgba(0,0,0,0.8);
-        border: 1px solid rgba(148,163,184,0.3);
+        border: 2px solid var(--rcw-primary-color);
         display: none;
         flex-direction: column;
+        z-index: 2;
       }
       .rcw-root.rcw-open .rcw-panel {
         display: flex;
       }
       .rcw-header {
         padding: 10px 12px;
-        border-bottom: 1px solid rgba(148,163,184,0.3);
+        border-bottom: none;
         display: flex;
         align-items: center;
-        background: linear-gradient(135deg,#111827,#020617);
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(9px);
+        -webkit-backdrop-filter: blur(9px);
       }
       .rcw-header-left {
         display: flex;
@@ -221,18 +277,18 @@
         min-width: 0;
       }
       .rcw-header-avatar {
-        width: 39px;
-        height: 39px;
-        border-radius: 50%;
-        background: var(--rcw-secondary-color);
-        border: 2px solid #fff;
+        width: 59px;
+        height: 59px;
+        border-radius: 0;
+        background: transparent;
+        border: none;
         box-sizing: border-box;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 18px;
         flex-shrink: 0;
-        overflow: hidden;
+        overflow: visible;
       }
       .rcw-header-text {
         display: flex;
@@ -241,15 +297,17 @@
         min-width: 0;
       }
       .rcw-header-title {
-        font-size: 13px;
+        font-size: 16px;
         font-weight: 600;
+        color: #fff;
+        text-transform: uppercase;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
       .rcw-header-subtitle {
-        font-size: 11px;
-        color: #9ca3af;
+        font-size: 12px;
+        color: #fff;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -257,9 +315,10 @@
       .rcw-header-close {
         border: none;
         background: transparent;
-        color: #9ca3af;
+        color: #fff;
         cursor: pointer;
-        font-size: 18px;
+        font-size: 22px;
+        font-weight: 700;
         padding: 0 6px;
         line-height: 1;
         margin-left: 8px;
@@ -272,17 +331,17 @@
         flex: 1;
         padding: 10px 10px 4px;
         overflow-y: auto;
-        background: radial-gradient(circle at top,#020617 0,#000 60%);
+        background: #b0b0b0;
       }
       .rcw-status {
-        font-size: 10px;
-        color: #9ca3af;
+        font-size: 11px;
+        color: #111827;
         padding: 0 10px 6px;
       }
       .rcw-footer {
         padding: 8px;
-        border-top: 1px solid rgba(148,163,184,0.3);
-        background: #020617;
+        border-top: none;
+        background: #000;
         display: flex;
         flex-direction: column;
         align-items: stretch;
@@ -292,10 +351,11 @@
         width: 100%;
         padding: 8px 10px;
         border-radius: 10px;
-        border: 1px solid rgba(148,163,184,0.6);
-        background: #020617 !important;
-        color: #e5e7eb !important;
-        font-size: 13px;
+        border: 1px solid #fff;
+        background: #000 !important;
+        color: #fff !important;
+        font-size: 14px;
+        font-family: inherit;
         outline: none;
         min-height: 40px;
         max-height: 90px;
@@ -306,18 +366,18 @@
         display: block;
       }
       .rcw-input::placeholder {
-        color: #6b7280;
+        color: #fff;
       }
       .rcw-send {
         align-self: flex-end;
         border: none;
         border-radius: 999px;
         padding: 6px 12px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 500;
         cursor: pointer;
-        background: linear-gradient(135deg,#22c55e,#16a34a);
-        color: #022c22;
+        background: var(--rcw-primary-color);
+        color: var(--rcw-send-text-color);
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -336,18 +396,20 @@
         max-width: 80%;
         padding: 7px 10px;
         border-radius: 14px;
-        font-size: 13px;
+        font-size: 14px;
         line-height: 1.4;
         word-wrap: break-word;
         white-space: pre-wrap;
       }
       .rcw-msg-row.rcw-agent .rcw-msg-bubble {
-        background: rgba(15,23,42,0.95);
-        border: 1px solid rgba(148,163,184,0.6);
+        background: #464646;
+        border: 1px solid var(--rcw-primary-color);
+        color: #fff;
       }
       .rcw-msg-row.rcw-user .rcw-msg-bubble {
-        background: #4f46e5;
-        border: 1px solid rgba(199,210,254,0.7);
+        background: #000;
+        border: 1px solid #fff;
+        color: #fff;
       }
       .rcw-typing {
         display: inline-block;
@@ -370,9 +432,27 @@
         30% { transform: translateY(-3px); opacity: 1; }
       }
       @media (max-width: 480px) {
+        .rcw-bubble {
+          width: 64px;
+          height: 64px;
+        }
         .rcw-panel {
           width: calc(100vw - 24px);
           height: calc(100vh - 40px);
+        }
+      }
+      @media (min-width: 1280px) {
+        .rcw-bubble {
+          width: 89px;
+          height: 89px;
+        }
+        .rcw-bubble-icon {
+          width: 58px;
+          height: 58px;
+        }
+        .rcw-bubble-icon svg {
+          width: 58px;
+          height: 58px;
         }
       }
     `;
@@ -419,8 +499,8 @@
     panelEl.style.left = "";
     panelEl.style.right = "";
 
-    if (isBottom) panelEl.style.bottom = "60px";
-    else panelEl.style.top = "60px";
+    if (isBottom) panelEl.style.bottom = "0";
+    else panelEl.style.top = "0";
 
     if (isLeft) panelEl.style.left = "0";
     else panelEl.style.right = "0";
@@ -432,14 +512,14 @@
     const root = document.createElement("div");
     root.className = "rcw-root";
     // Apply subscriber-specific colors (fall back to defaults).
-    root.style.setProperty(
-      "--rcw-primary-color",
-      options.widgetPrimaryColorHex || defaultOptions.widgetPrimaryColorHex
-    );
+    const resolvedPrimary =
+      normalizeHexColor(options.widgetPrimaryColorHex) || defaultOptions.widgetPrimaryColorHex;
+    root.style.setProperty("--rcw-primary-color", resolvedPrimary);
     root.style.setProperty(
       "--rcw-secondary-color",
-      options.widgetSecondaryColorHex || defaultOptions.widgetSecondaryColorHex
+      normalizeHexColor(options.widgetSecondaryColorHex) || defaultOptions.widgetSecondaryColorHex
     );
+    root.style.setProperty("--rcw-send-text-color", getButtonTextColor(resolvedPrimary));
 
     const bubble = document.createElement("div");
     bubble.className = "rcw-bubble";
