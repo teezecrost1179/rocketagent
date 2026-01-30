@@ -15,6 +15,9 @@ function isAllowedDomain(allowedDomains: string[] | null | undefined, host: stri
   return allowedDomains.map((d) => d.toLowerCase()).includes(host);
 }
 
+const DEFAULT_WIDGET_PRIMARY = "#081d49";
+const DEFAULT_WIDGET_SECONDARY = "#c6c6c6";
+
 const router = Router();
 
 router.get("/widget-config", async (req, res) => {
@@ -34,6 +37,8 @@ router.get("/widget-config", async (req, res) => {
         widgetSubtitle: true,
         widgetGreeting: true,
         widgetAvatarUrl: true,
+        widgetPrimaryColorHex: true,
+        widgetSecondaryColorHex: true,
         offlineMessage: true,
         allowedDomains: true,
       },
@@ -61,6 +66,8 @@ router.get("/widget-config", async (req, res) => {
       subtitle: s.widgetSubtitle ?? "",
       greeting: s.widgetGreeting ?? "",
       avatarUrl: s.widgetAvatarUrl ?? "",
+      widgetPrimaryColorHex: s.widgetPrimaryColorHex ?? DEFAULT_WIDGET_PRIMARY,
+      widgetSecondaryColorHex: s.widgetSecondaryColorHex ?? DEFAULT_WIDGET_SECONDARY,
       offlineMessage: s.offlineMessage ?? "",
     });
   } catch (err) {

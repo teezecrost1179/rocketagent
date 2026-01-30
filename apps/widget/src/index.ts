@@ -17,6 +17,10 @@
     // Logo/avatar
     avatarUrl?: string;
 
+    // Colors
+    widgetPrimaryColorHex?: string;
+    widgetSecondaryColorHex?: string;
+
     // UI
     position?: string; // t, tr, r, br, b, bl, l, tl
     offsetX?: number;
@@ -33,7 +37,16 @@
   const defaultOptions: Required<
     Pick<
       WidgetConfig,
-      "apiBase" | "position" | "offsetX" | "offsetY" | "title" | "subtitle" | "greeting" | "theme"
+      | "apiBase"
+      | "position"
+      | "offsetX"
+      | "offsetY"
+      | "title"
+      | "subtitle"
+      | "greeting"
+      | "theme"
+      | "widgetPrimaryColorHex"
+      | "widgetSecondaryColorHex"
     >
   > = {
     apiBase: "",
@@ -43,8 +56,12 @@
     title: "Rocket Reception",
     subtitle: "AI receptionist",
     greeting: "Hi! How can I help today?",
-    theme: "dark"
+    theme: "dark",
+    widgetPrimaryColorHex: "#081d49",
+    widgetSecondaryColorHex: "#c6c6c6"
   };
+
+  const DEFAULT_AVATAR_URL = "https://rocketreception.ca/assets/rocket-reception.png";
 
   function mergeOptions(base: WidgetConfig, override?: WidgetConfig): WidgetConfig {
     const out: WidgetConfig = { ...base };
@@ -146,22 +163,33 @@
         z-index: 999999;
         font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
         color: #f9fafb;
+        --rcw-primary-color: #081d49;
+        --rcw-secondary-color: #c6c6c6;
       }
       .rcw-bubble {
         width: 52px;
         height: 52px;
         border-radius: 999px;
-        background: radial-gradient(circle at 30% 30%, #facc15 0, #f97316 40%, #0f172a 85%);
+        background: transparent;
         box-shadow: 0 10px 25px rgba(0,0,0,0.6);
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        border: 1px solid rgba(15,23,42,0.7);
+        border: 1px solid rgba(15,23,42,0.2);
+        color: var(--rcw-primary-color);
       }
       .rcw-bubble-icon {
-        font-size: 26px;
-        transform: translateY(1px);
+        width: 36px;
+        height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .rcw-bubble-icon svg {
+        width: 36px;
+        height: 36px;
+        display: block;
       }
       .rcw-panel {
         position: absolute;
@@ -198,7 +226,7 @@
         width: 30px;
         height: 30px;
         border-radius: 50%;
-        background: radial-gradient(circle at 30% 30%, #facc15 0, #f97316 40%, #0f172a 85%);
+        background: var(--rcw-secondary-color);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -403,13 +431,30 @@
 
     const root = document.createElement("div");
     root.className = "rcw-root";
+    // Apply subscriber-specific colors (fall back to defaults).
+    root.style.setProperty(
+      "--rcw-primary-color",
+      options.widgetPrimaryColorHex || defaultOptions.widgetPrimaryColorHex
+    );
+    root.style.setProperty(
+      "--rcw-secondary-color",
+      options.widgetSecondaryColorHex || defaultOptions.widgetSecondaryColorHex
+    );
 
     const bubble = document.createElement("div");
     bubble.className = "rcw-bubble";
 
     const icon = document.createElement("div");
     icon.className = "rcw-bubble-icon";
-    icon.textContent = "💬";
+    icon.innerHTML = `
+      <svg class="rocketChatBubble" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 86.91">
+        <path fill="currentColor" d="M48.38,62.2c-1.14,0-1.96.97-2.35,1.37-5.47,5.59-10.64,11.95-15.96,17.75-1.24,1.35-4.11,4.87-5.64,5.37-1.75.58-3.75-.04-4.67-1.67-.08-.14-.5-1.09-.5-1.15v-21.67c-3.84-.09-7.5.46-11.14-1.04C3.75,59.36.46,55.2,0,50.43V11.9C.55,5.41,6.19.4,12.59,0h64.68c6.65.37,12.11,5.36,12.73,12.04,0,0,0,30.11,0,38.26s-4.57,11.91-10.39,11.91-23.31-.01-31.22-.01Z" />
+        <path fill="#fff" d="M26.56,74.31l14.38-15.96c1.16-1.62,2.46-2.6,4.56-2.76,0,0,29.07,0,32.32,0s5.54-1.77,5.54-5.87.29-25.09,0-38.06c-.83-3.06-3.22-4.86-6.36-5.05H13.28c-3.4,0-6.4,2.34-6.67,5.84v37.3c1.04,8.42,10.84,5.22,16.69,5.88,1.39.16,3.02,1.15,3.27,2.65v16.03Z" />
+        <path fill="currentColor" d="M44.14,24.67c3.81-.52,7.02,2.75,5.99,6.54-1.68,6.14-11.04,4.62-10.21-2.36.23-1.94,2.3-3.91,4.22-4.18Z" />
+        <path fill="currentColor" d="M24.6,24.67c6.56-.9,8.33,8.45,2.35,10.19-7.18,2.08-9.49-9.21-2.35-10.19Z" />
+        <path fill="currentColor" d="M63.96,24.67c7.14-.98,8.18,9.9,1.06,10.42-6.4.47-7.57-9.53-1.06-10.42Z" />
+      </svg>
+    `;
     bubble.appendChild(icon);
 
     const panel = document.createElement("div");
@@ -422,10 +467,11 @@
     const avatar = document.createElement("div");
     avatar.className = "rcw-header-avatar";
 
-    if (options.avatarUrl) {
+    const avatarUrl = options.avatarUrl || DEFAULT_AVATAR_URL;
+    if (avatarUrl) {
       avatar.style.background = "transparent";
       const img = document.createElement("img");
-      img.src = options.avatarUrl;
+      img.src = avatarUrl;
       img.alt = options.title || "Chat";
       img.style.width = "100%";
       img.style.height = "100%";
