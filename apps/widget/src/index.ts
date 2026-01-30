@@ -169,14 +169,11 @@
       .rcw-bubble {
         width: 52px;
         height: 52px;
-        border-radius: 999px;
         background: transparent;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.6);
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        border: 1px solid rgba(15,23,42,0.2);
         color: var(--rcw-primary-color);
       }
       .rcw-bubble-icon {
@@ -190,6 +187,7 @@
         width: 36px;
         height: 36px;
         display: block;
+        filter: drop-shadow(0 6px 12px rgba(0,0,0,0.35));
       }
       .rcw-panel {
         position: absolute;
@@ -223,10 +221,12 @@
         min-width: 0;
       }
       .rcw-header-avatar {
-        width: 30px;
-        height: 30px;
+        width: 39px;
+        height: 39px;
         border-radius: 50%;
         background: var(--rcw-secondary-color);
+        border: 2px solid #fff;
+        box-sizing: border-box;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -473,8 +473,8 @@
       const img = document.createElement("img");
       img.src = avatarUrl;
       img.alt = options.title || "Chat";
-      img.style.width = "100%";
-      img.style.height = "100%";
+      img.style.width = "90%";
+      img.style.height = "90%";
       img.style.objectFit = "cover";
       avatar.appendChild(img);
     } else {
