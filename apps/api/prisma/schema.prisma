@@ -79,6 +79,8 @@ model Subscriber {
   widgetSubtitle    String?
   widgetGreeting    String?
   widgetAvatarUrl   String?
+  widgetPrimaryColorHex   String?
+  widgetSecondaryColorHex String?
   widgetEnabled     Boolean @default(true)
   offlineMessage    String?
 
