@@ -12,6 +12,7 @@ async function main() {
         "Hi! Welcome to Winnipeg Beauty 💅 Would you like to book an appointment or ask a question?",
       widgetAvatarUrl:
         "https://rocketreception.ca/demo-winnipeg-beauty/assets/winnipeg-beauty-logo.png",
+      widgetPrimaryColorHex: "#f473bf",
     },
     {
       slug: "winnipegrenoking",
@@ -42,6 +43,7 @@ async function main() {
       widgetSubtitle: d.widgetSubtitle,
       widgetGreeting: d.widgetGreeting,
       widgetAvatarUrl: d.widgetAvatarUrl,
+      widgetPrimaryColorHex: d.widgetPrimaryColorHex,
       allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
     });
 

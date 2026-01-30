@@ -12,6 +12,8 @@ export type SeedSubscriberInput = {
   widgetSubtitle?: string;
   widgetGreeting?: string;
   widgetAvatarUrl?: string | null;
+  widgetPrimaryColorHex?: string | null;
+  widgetSecondaryColorHex?: string | null;
   offlineMessage?: string | null;
   websiteUrl?: string;
   publicPhoneE164?: string;
@@ -30,6 +32,8 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     widgetSubtitle,
     widgetGreeting,
     widgetAvatarUrl,
+    widgetPrimaryColorHex,
+    widgetSecondaryColorHex,
     offlineMessage,
     websiteUrl,
     publicPhoneE164,
@@ -47,6 +51,8 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     widgetSubtitle,
     widgetGreeting,
     widgetAvatarUrl,
+    widgetPrimaryColorHex,
+    widgetSecondaryColorHex,
     offlineMessage,
     websiteUrl,
     publicPhoneE164,
