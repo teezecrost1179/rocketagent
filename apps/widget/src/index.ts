@@ -366,14 +366,6 @@
       .rcw-input::placeholder {
         color: #fff;
       }
-      .rcw-root a {
-        color: #fff;
-        text-decoration: underline;
-        font-size: inherit;
-      }
-      .rcw-root a:visited {
-        color: #fff;
-      }
       .rcw-send {
         align-self: flex-end;
         border: none;
