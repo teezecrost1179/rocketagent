@@ -265,9 +265,7 @@
         border-bottom: none;
         display: flex;
         align-items: center;
-        background: rgba(0, 0, 0, 0.9);
-        backdrop-filter: blur(9px);
-        -webkit-backdrop-filter: blur(9px);
+        background: #000;
       }
       .rcw-header-left {
         display: flex;
@@ -277,18 +275,18 @@
         min-width: 0;
       }
       .rcw-header-avatar {
-        width: 59px;
-        height: 59px;
-        border-radius: 0;
-        background: transparent;
-        border: none;
+        width: 39px;
+        height: 39px;
+        border-radius: 50%;
+        background: var(--rcw-secondary-color);
+        border: 2px solid #fff;
         box-sizing: border-box;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 18px;
         flex-shrink: 0;
-        overflow: visible;
+        overflow: hidden;
       }
       .rcw-header-text {
         display: flex;
