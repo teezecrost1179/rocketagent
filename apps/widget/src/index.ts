@@ -210,7 +210,7 @@
         cursor: pointer;
         color: var(--rcw-primary-color);
         transition: transform 160ms ease, filter 160ms ease;
-        animation: rcw-float 4s ease-in-out infinite;
+        animation: rcw-float 3.6s ease-in-out infinite;
         z-index: 1;
       }
       .rcw-bubble:hover {
@@ -236,9 +236,9 @@
       }
       @keyframes rcw-float {
         0% { transform: translate(0, 0); }
-        25% { transform: translate(2px, -2px); }
-        50% { transform: translate(0, -3px); }
-        75% { transform: translate(-2px, -1px); }
+        25% { transform: translate(3px, -3px); }
+        50% { transform: translate(0, -4px); }
+        75% { transform: translate(-3px, -2px); }
         80% { transform: translate(0, 0); }
         100% { transform: translate(0, 0); }
       }
@@ -364,6 +364,14 @@
         display: block;
       }
       .rcw-input::placeholder {
+        color: #fff;
+      }
+      .rcw-root a {
+        color: #fff;
+        text-decoration: underline;
+        font-size: inherit;
+      }
+      .rcw-root a:visited {
         color: #fff;
       }
       .rcw-send {
