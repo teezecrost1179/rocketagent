@@ -315,7 +315,7 @@
         background: transparent;
         color: #fff;
         cursor: pointer;
-        font-size: 22px;
+        font-size: 26px;
         font-weight: 700;
         padding: 0 6px;
         line-height: 1;
