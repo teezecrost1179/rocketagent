@@ -9,7 +9,7 @@ const router = Router();
 // Endpoint to trigger an outbound call from the form
 router.post("/call", async (req, res) => {
   try {
-    const { phone, name, subscriber } = req.body;
+    const { phone, name, subscriber, transferPreselect } = req.body;
 
     if (!phone || typeof phone !== "string") {
       return res.status(400).json({ error: "Missing or invalid phone number" });
@@ -93,6 +93,7 @@ router.post("/call", async (req, res) => {
       dynamicVariables: {
         call_type: "outbound",
         ...(historySummary ? { history_summary: historySummary } : {}),
+        ...(transferPreselect ? { transfer_preselect: transferPreselect } : {}),
       },
     });
 

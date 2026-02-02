@@ -256,3 +256,9 @@ Subscriber.allowedDomains controls access to /widget-config and /chat.
 We use Origin header first, then Referer.
 
 If both are missing, we log a warning and allow the request.
+
+Widget branding defaults
+
+widgetPrimaryColorHex / widgetSecondaryColorHex are optional; widget-config and widget client fall back to defaults.
+
+Default avatar URL: https://rocketreception.ca/assets/rocket-reception.png

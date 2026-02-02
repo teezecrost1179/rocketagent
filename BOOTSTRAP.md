@@ -53,6 +53,7 @@ Subscriber
 slug (unique tenant key)
 
 Widget fields: widgetTitle, widgetSubtitle, widgetGreeting, widgetAvatarUrl, widgetEnabled, offlineMessage
+Widget colors: widgetPrimaryColorHex, widgetSecondaryColorHex
 
 Public contact fields (just added + migrated): websiteUrl, publicPhoneE164
 
@@ -316,6 +317,16 @@ Demo businesses exist as separate Subscribers (winnipegbeauty, winnipegrenoking,
 Channels are seeded so only the correct subscriber claims numbers/agents.
 
 Retell agent IDs for chat/voice are stored in DB fields on SubscriberChannel (providerAgentIdOutbound/providerAgentIdInbound/providerInboxId).
+
+Widget branding defaults:
+- widget-config returns default colors if missing
+- widget client also falls back to defaults (colors + avatar)
+- default avatar URL: https://rocketreception.ca/assets/rocket-reception.png
+
+Widget demo branding:
+- Winnipeg Beauty avatar: https://rocketreception.ca/demo-winnipeg-beauty/assets/winnipeg-beauty-logo.png
+- Rocket Science Designs avatar: https://rocketsciencedesigns.com/assets/rocket-logo-26.png
+- Winnipeg Beauty primary color: #f473bf
 
 NOTES / GOTCHAS YOU’VE HIT BEFORE
 
