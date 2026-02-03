@@ -20,7 +20,8 @@ async function main() {
       widgetSubtitle: "Kitchens, basements, and full renovations",
       widgetGreeting:
         "Hi! Thanks for calling Winnipeg Reno King. Are you looking for a quote or information on our services?",
-      widgetAvatarUrl: null,
+      widgetAvatarUrl: "https://rocketreception.ca/demo-winnipeg-reno-king/assets/logo.png",
+      widgetPrimaryColorHex: "#ae8332",
     },
     {
       slug: "winnipegprimoaccountants",
@@ -28,7 +29,9 @@ async function main() {
       widgetSubtitle: "Tax, bookkeeping, and small business accounting",
       widgetGreeting:
         "Hello! You’ve reached Winnipeg Primo Accountants. How can we assist you today?",
-      widgetAvatarUrl: null,
+      widgetAvatarUrl:
+        "https://rocketreception.ca/demo-winnipeg-primo-accountants/assets/logo.png",
+      widgetPrimaryColorHex: "#14aa40",
     },
   ];
 
