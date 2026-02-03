@@ -13,6 +13,7 @@ async function main() {
       widgetAvatarUrl:
         "https://rocketreception.ca/demo-winnipeg-beauty/assets/winnipeg-beauty-logo.png",
       widgetPrimaryColorHex: "#f473bf",
+      widgetSecondaryColorHex: "#808080",
     },
     {
       slug: "winnipegrenoking",
@@ -22,6 +23,7 @@ async function main() {
         "Hi! Thanks for calling Winnipeg Reno King. Are you looking for a quote or information on our services?",
       widgetAvatarUrl: "https://rocketreception.ca/demo-winnipeg-reno-king/assets/logo.png",
       widgetPrimaryColorHex: "#ae8332",
+      widgetSecondaryColorHex: "#808080",
     },
     {
       slug: "winnipegprimoaccountants",
@@ -32,6 +34,7 @@ async function main() {
       widgetAvatarUrl:
         "https://rocketreception.ca/demo-winnipeg-primo-accountants/assets/logo.png",
       widgetPrimaryColorHex: "#14aa40",
+      widgetSecondaryColorHex: "#808080",
     },
   ];
 
