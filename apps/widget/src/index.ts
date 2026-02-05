@@ -547,7 +547,6 @@
 
     const avatarUrl = options.avatarUrl || DEFAULT_AVATAR_URL;
     if (avatarUrl) {
-      avatar.style.background = "transparent";
       const img = document.createElement("img");
       img.src = avatarUrl;
       img.alt = options.title || "Chat";

@@ -335,6 +335,14 @@ router.post("/chat", async (req, res) => {
       err?.response?.statusText,
       err?.response?.data || err.message
     );
+    // Temporary: log full Retell error payload for debugging end-of-chat behavior.
+    if (err?.response) {
+      console.error("[chat] retell error payload", {
+        status: err.response.status,
+        statusText: err.response.statusText,
+        data: err.response.data,
+      });
+    }
     return res.status(500).json({ error: "Failed to get chat response" });
   }
 });

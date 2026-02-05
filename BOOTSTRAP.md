@@ -327,6 +327,11 @@ Widget demo branding:
 - Winnipeg Beauty avatar: https://rocketreception.ca/demo-winnipeg-beauty/assets/winnipeg-beauty-logo.png
 - Rocket Science Designs avatar: https://rocketsciencedesigns.com/assets/rocket-logo-26.png
 - Winnipeg Beauty primary color: #f473bf
+- Winnipeg Reno King avatar: https://rocketreception.ca/demo-winnipeg-reno-king/assets/logo.png
+- Winnipeg Reno King primary color: #ae8332
+- Winnipeg Primo Accountants avatar: https://rocketreception.ca/demo-winnipeg-primo-accountants/assets/logo.png
+- Winnipeg Primo Accountants primary color: #14aa40
+- Demo secondary color (avatar bg): #808080
 
 NOTES / GOTCHAS YOU’VE HIT BEFORE
 
