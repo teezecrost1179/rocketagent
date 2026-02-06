@@ -272,6 +272,8 @@ router.post("/chat", async (req, res) => {
       historySummary || undefined,
       dynamicVariables
     );
+    // Temporary: log raw reply for debugging Retell responses.
+    console.log("[chat] retell reply", { chatId: newChatId, fullReply });
 
     if (interaction.providerConversationId !== newChatId) {
       await prisma.interaction.update({

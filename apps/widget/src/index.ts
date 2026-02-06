@@ -731,6 +731,9 @@
             messagesEl.removeChild(typingRow);
           } catch {}
 
+          // Temporary: log API responses for debugging
+          console.log("[widget] /chat response", result);
+
           if (!result.ok || (result.data && result.data.error)) {
             appendMessage("agent", "Sorry, I ran into an error. Please try again in a moment.");
             return;
