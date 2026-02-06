@@ -5,7 +5,7 @@ async function main() {
   const DEMO_NUMBER = "+14316005505";
   const RSD_NUMBER = "+12048082733";
   const GATEKEEPER_INBOUND_AGENT_ID = "agent_7ace7a26b3a6e5a2d9f3cea066";
-  const GATEKEEPER_OUTBOUND_AGENT_ID = "agent_5641a5e80e400b7ff5fa34b150";
+  const GATEKEEPER_OUTBOUND_AGENT_ID = "agent_81717625726392f58730b83fd7";
   const RSD_INBOUND_AGENT_ID = "agent_59a0cc2b7135463c3acc7cadd5";
   const RSD_OUTBOUND_AGENT_ID = "agent_957038f7f980c276a6af3ec3b6";
   const subscribers = await prisma.subscriber.findMany({
