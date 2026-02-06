@@ -265,7 +265,7 @@ router.post("/chat", async (req, res) => {
     });
 
     // 1) Get completion from Retell
-    const { chatId: newChatId, fullReply } = await getRetellChatCompletion(
+    const { chatId: newChatId, fullReply, chatEnded } = await getRetellChatCompletion(
       message,
       interaction.providerConversationId || undefined,
       chatChannel.providerInboxId,
@@ -329,6 +329,7 @@ router.post("/chat", async (req, res) => {
       chatId: newChatId,
       reply,
       interactionId: interaction.id,
+      chatEnded: !!chatEnded,
     });
   } catch (err: any) {
     console.error(

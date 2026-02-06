@@ -48,7 +48,7 @@ export async function getRetellChatCompletion(
   agentId?: string,
   historySummary?: string,
   dynamicVariables?: Record<string, string>
-): Promise<{ chatId: string; fullReply: string }> {
+): Promise<{ chatId: string; fullReply: string; chatEnded?: boolean }> {
   let chat_id = chatId;
   const resolvedAgentId = agentId;
 
@@ -98,12 +98,30 @@ export async function getRetellChatCompletion(
   const messages = completionResp.data.messages || [];
   // Temporary: log full completion payload for debugging tool calls.
   console.log("[retell] chat completion payload", completionResp.data);
-  const last = messages[messages.length - 1];
 
+  let chatEnded = false;
+  let endMessage: string | null = null;
+
+  for (const msg of messages) {
+    if (msg?.role === "tool_call_invocation" && (msg?.name === "end_call" || msg?.type === "end_call")) {
+      chatEnded = true;
+      if (typeof msg.arguments === "string") {
+        try {
+          const parsed = JSON.parse(msg.arguments);
+          if (parsed?.execution_message) {
+            endMessage = String(parsed.execution_message);
+          }
+        } catch {
+          // Ignore parse errors; fall back to agent content.
+        }
+      }
+    }
+  }
+
+  const lastAgent = [...messages].reverse().find((msg: any) => msg?.role === "agent" && typeof msg.content === "string");
   const fullReply =
-    last && typeof last.content === "string"
-      ? last.content
-      : "(Sorry, I couldn't generate a response.)";
+    endMessage ||
+    (lastAgent ? lastAgent.content : "(Sorry, I couldn't generate a response.)");
 
-  return { chatId: chat_id!, fullReply };
+  return { chatId: chat_id!, fullReply, chatEnded: chatEnded || undefined };
 }

@@ -626,6 +626,7 @@
     let phonePromptShown = false;
     let contactPhoneKnown = false;
     let sending = false;
+    let chatEnded = false;
 
     function appendMessage(role: "user" | "agent", text: string) {
       const row = document.createElement("div");
@@ -667,6 +668,40 @@
       }
     }
 
+    function showStartNewChatLink() {
+      const row = document.createElement("div");
+      row.className = "rcw-msg-row rcw-agent";
+      const bubbleEl = document.createElement("div");
+      bubbleEl.className = "rcw-msg-bubble";
+      bubbleEl.textContent = "This chat has ended.";
+      row.appendChild(bubbleEl);
+
+      const linkRow = document.createElement("div");
+      linkRow.className = "rcw-msg-row rcw-agent";
+      const linkBubble = document.createElement("div");
+      linkBubble.className = "rcw-msg-bubble";
+      linkBubble.style.background = "#000";
+      linkBubble.style.border = "1px solid #fff";
+      linkBubble.style.color = "#fff";
+      linkBubble.style.cursor = "pointer";
+      linkBubble.textContent = "Start a new chat";
+      linkBubble.addEventListener("click", () => {
+        chatEnded = false;
+        chatId = null;
+        saveChatId(options.subscriber, null);
+        input.disabled = false;
+        sendBtn.disabled = false;
+        input.focus();
+        linkRow.remove();
+        row.remove();
+      });
+      linkRow.appendChild(linkBubble);
+
+      messagesEl.appendChild(row);
+      messagesEl.appendChild(linkRow);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
     function canChat(): boolean {
       return !!normalizeApiBase(options.apiBase) && !options.offline;
     }
@@ -686,6 +721,11 @@
 
       if (!canChat()) {
         appendMessage("agent", "Sorry – I can’t connect right now. Please try again later.");
+        return;
+      }
+
+      if (chatEnded) {
+        showStartNewChatLink();
         return;
       }
 
@@ -745,6 +785,12 @@
           saveInteractionId(options.subscriber, interactionId);
           const reply = (result.data && result.data.reply) || "(No response)";
           appendMessage("agent", reply);
+          if (result.data && result.data.chatEnded) {
+            chatEnded = true;
+            input.disabled = true;
+            sendBtn.disabled = true;
+            showStartNewChatLink();
+          }
         })
         .catch(() => {
           try {
