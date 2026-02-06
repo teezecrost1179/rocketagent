@@ -96,6 +96,8 @@ export async function getRetellChatCompletion(
   );
 
   const messages = completionResp.data.messages || [];
+  // Temporary: log full completion payload for debugging tool calls.
+  console.log("[retell] chat completion payload", completionResp.data);
   const last = messages[messages.length - 1];
 
   const fullReply =
