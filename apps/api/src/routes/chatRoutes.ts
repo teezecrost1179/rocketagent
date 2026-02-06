@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   getRetellChatCompletion,
   createRetellOutboundCall,
+  updateRetellChatDynamicVariables,
 } from "../services/retellService";
 import { prisma } from "../lib/prisma";
 import { buildHistorySummary } from "../services/historySummaryService";
@@ -255,6 +256,18 @@ router.post("/chat", async (req, res) => {
             ...(transferPreselect ? { transfer_preselect: transferPreselect } : {}),
           }
         : undefined;
+
+    // Ensure interaction_id (and optional context) is available for Retell functions on existing chats.
+    if (interaction.providerConversationId) {
+      await updateRetellChatDynamicVariables({
+        chatId: interaction.providerConversationId,
+        dynamicVariables: {
+          interaction_id: interaction.id,
+          ...(phoneForHistory ? { contact_phone_e164: phoneForHistory } : {}),
+          ...(transferPreselect ? { transfer_preselect: transferPreselect } : {}),
+        },
+      });
+    }
 
     await prisma.interactionMessage.create({
       data: {

@@ -125,3 +125,29 @@ export async function getRetellChatCompletion(
 
   return { chatId: chat_id!, fullReply, chatEnded: chatEnded || undefined };
 }
+
+/**
+ * Update an existing Retell chat with dynamic variables (e.g., interaction_id).
+ */
+export async function updateRetellChatDynamicVariables({
+  chatId,
+  dynamicVariables,
+}: {
+  chatId: string;
+  dynamicVariables: Record<string, string>;
+}) {
+  if (!chatId || !dynamicVariables || Object.keys(dynamicVariables).length === 0) return;
+
+  await axios.patch(
+    `https://api.retellai.com/update-chat/${chatId}`,
+    {
+      override_dynamic_variables: dynamicVariables,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${RETELL_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
