@@ -278,7 +278,7 @@ router.post("/chat", async (req, res) => {
     });
 
     // 1) Get completion from Retell
-    const { chatId: newChatId, fullReply, chatEnded } = await getRetellChatCompletion(
+    const { chatId: newChatId, fullReply, chatEnded, agentMessages } = await getRetellChatCompletion(
       message,
       interaction.providerConversationId || undefined,
       chatChannel.providerInboxId,
@@ -315,6 +315,13 @@ router.post("/chat", async (req, res) => {
 
     const reply = cleanedLines.join("\n").trim();
 
+    const replies =
+      agentMessages && agentMessages.length
+        ? agentMessages.map((msg) => msg.trim()).filter(Boolean)
+        : reply
+        ? [reply]
+        : [];
+
     // 3) If there was a CALL_REQUEST, trigger the outbound call in the background
     if (phoneForCall) {
       console.log("CALL_REQUEST detected from chat. Number:", phoneForCall);
@@ -330,17 +337,20 @@ router.post("/chat", async (req, res) => {
       });
     }
 
-    await prisma.interactionMessage.create({
-      data: {
-        interactionId: interaction.id,
-        role: "AGENT",
-        content: reply,
-      },
-    });
+    for (const msg of replies) {
+      await prisma.interactionMessage.create({
+        data: {
+          interactionId: interaction.id,
+          role: "AGENT",
+          content: msg,
+        },
+      });
+    }
 
     return res.json({
       chatId: newChatId,
       reply,
+      replies,
       interactionId: interaction.id,
       chatEnded: !!chatEnded,
     });

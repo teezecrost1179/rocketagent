@@ -48,7 +48,7 @@ export async function getRetellChatCompletion(
   agentId?: string,
   historySummary?: string,
   dynamicVariables?: Record<string, string>
-): Promise<{ chatId: string; fullReply: string; chatEnded?: boolean }> {
+): Promise<{ chatId: string; fullReply: string; chatEnded?: boolean; agentMessages?: string[] }> {
   let chat_id = chatId;
   const resolvedAgentId = agentId;
 
@@ -102,6 +102,10 @@ export async function getRetellChatCompletion(
   let chatEnded = false;
   let endMessage: string | null = null;
 
+  const agentMessages: string[] = messages
+    .filter((msg: any) => msg?.role === "agent" && typeof msg.content === "string")
+    .map((msg: any) => msg.content as string);
+
   for (const msg of messages) {
     if (msg?.role === "tool_call_invocation" && (msg?.name === "end_call" || msg?.type === "end_call")) {
       chatEnded = true;
@@ -118,12 +122,17 @@ export async function getRetellChatCompletion(
     }
   }
 
-  const lastAgent = [...messages].reverse().find((msg: any) => msg?.role === "agent" && typeof msg.content === "string");
+  const lastAgent = agentMessages.length ? agentMessages[agentMessages.length - 1] : null;
   const fullReply =
     endMessage ||
-    (lastAgent ? lastAgent.content : "(Sorry, I couldn't generate a response.)");
+    (lastAgent ? lastAgent : "(Sorry, I couldn't generate a response.)");
 
-  return { chatId: chat_id!, fullReply, chatEnded: chatEnded || undefined };
+  return {
+    chatId: chat_id!,
+    fullReply,
+    chatEnded: chatEnded || undefined,
+    agentMessages: agentMessages.length ? agentMessages : undefined,
+  };
 }
 
 /**

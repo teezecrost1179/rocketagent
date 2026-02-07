@@ -783,8 +783,11 @@
           saveChatId(options.subscriber, chatId);
           interactionId = (result.data && result.data.interactionId) || interactionId;
           saveInteractionId(options.subscriber, interactionId);
-          const reply = (result.data && result.data.reply) || "(No response)";
-          appendMessage("agent", reply);
+          const replies =
+            (result.data && Array.isArray(result.data.replies) && result.data.replies.length
+              ? result.data.replies
+              : [(result.data && result.data.reply) || "(No response)"]) as string[];
+          replies.forEach((msg) => appendMessage("agent", msg));
           if (result.data && result.data.chatEnded) {
             chatEnded = true;
             input.disabled = true;
