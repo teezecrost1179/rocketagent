@@ -5,7 +5,7 @@ import {
   updateRetellChatDynamicVariables,
 } from "../services/retellService";
 import { prisma } from "../lib/prisma";
-import { buildHistorySummary } from "../services/historySummaryService";
+import { buildHistorySignals } from "../services/historySummaryService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
@@ -237,7 +237,7 @@ router.post("/chat", async (req, res) => {
 
     // Build history summary only for new chats (no existing Retell chat_id yet).
     if (phoneForHistory && !interaction.providerConversationId) {
-      historySummary = await buildHistorySummary({
+      historySummary = await buildHistorySignals({
         subscriberId: chatChannel.subscriberId,
         phoneNumber: phoneForHistory,
         channels: ["VOICE", "SMS", "CHAT"],

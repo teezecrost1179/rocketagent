@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { createRetellOutboundCall } from "../services/retellService";
-import { buildHistorySummary } from "../services/historySummaryService";
+import { buildHistorySignals } from "../services/historySummaryService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
@@ -78,7 +78,7 @@ router.post("/call", async (req, res) => {
       });
     }
 
-    const historySummary = await buildHistorySummary({
+    const historySummary = await buildHistorySignals({
       subscriberId: voiceChannel.subscriberId,
       phoneNumber: toNumber,
       channel: "VOICE",

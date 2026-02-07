@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { RETELL_FUNCTION_SECRET } from "../config/env";
 import { prisma } from "../lib/prisma";
-import { buildHistorySummary } from "../services/historySummaryService";
+import { buildHistorySignals } from "../services/historySummaryService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
@@ -52,20 +52,13 @@ router.post("/retell/functions/capture-phone", async (req, res) => {
     }
 
     const historySummary =
-      (await buildHistorySummary({
+      (await buildHistorySignals({
         subscriberId: interaction.subscriberId,
         phoneNumber: normalized,
         channels: ["VOICE", "SMS", "CHAT"],
         maxInteractions: 3,
         lookbackMonths: 6,
       })) || "";
-
-    if (historySummary) {
-      await prisma.interaction.update({
-        where: { id: interaction.id },
-        data: { summary: historySummary },
-      });
-    }
 
     return res.status(200).json({
       history_summary: historySummary,

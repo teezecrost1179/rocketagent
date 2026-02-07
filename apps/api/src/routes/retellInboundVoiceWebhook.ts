@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
-import { buildHistorySummary } from "../services/historySummaryService";
+import { buildHistorySignals } from "../services/historySummaryService";
 
 const router = Router();
 
@@ -33,7 +33,7 @@ router.post("/retell/voice-inbound", async (req, res) => {
       return res.status(200).json({ dynamic_variables: {} });
     }
 
-    const historySummary = await buildHistorySummary({
+    const historySummary = await buildHistorySignals({
       subscriberId: channel.subscriberId,
       phoneNumber: fromNumber,
       channel: "VOICE",

@@ -207,3 +207,59 @@ export async function buildHistorySummary({
 
   return callOpenAiSummary(sourceText);
 }
+
+type HistorySignalsOptions = {
+  subscriberId: string;
+  phoneNumber: string;
+  channel?: "VOICE" | "SMS" | "CHAT";
+  channels?: Array<"VOICE" | "SMS" | "CHAT">;
+  maxInteractions?: number;
+  lookbackMonths?: number;
+};
+
+/**
+ * Build a compact list of recent interactions (date + channel + direction).
+ * Intended for low‑friction context at chat/call start.
+ */
+export async function buildHistorySignals({
+  subscriberId,
+  phoneNumber,
+  channel,
+  channels,
+  maxInteractions = DEFAULT_MAX_INTERACTIONS,
+  lookbackMonths = DEFAULT_LOOKBACK_MONTHS,
+}: HistorySignalsOptions): Promise<string | null> {
+  const since = buildLookbackDate(lookbackMonths);
+  const channelList = channels || (channel ? [channel] : undefined);
+
+  const interactions = await prisma.interaction.findMany({
+    where: {
+      subscriberId,
+      ...(channelList ? { channel: { in: channelList } } : {}),
+      startedAt: { gte: since },
+      OR: [
+        { fromNumberE164: phoneNumber },
+        { toNumberE164: phoneNumber },
+        { contactPhoneE164: phoneNumber },
+      ],
+    },
+    orderBy: { startedAt: "desc" },
+    take: maxInteractions,
+    select: {
+      startedAt: true,
+      direction: true,
+      channel: true,
+      summary: true,
+    },
+  });
+
+  if (interactions.length === 0) return null;
+
+  const lines = interactions.map((i) => {
+    const date = formatDate(i.startedAt);
+    const base = `${date} • ${i.channel} • ${i.direction}`;
+    return i.summary ? `${base} • ${normalizeText(i.summary)}` : base;
+  });
+
+  return `Recent interactions (${lookbackMonths}mo):\n- ${lines.join("\n- ")}`;
+}
