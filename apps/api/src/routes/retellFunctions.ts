@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { RETELL_FUNCTION_SECRET } from "../config/env";
 import { prisma } from "../lib/prisma";
-import { buildHistorySignals } from "../services/historySummaryService";
+import {
+  buildHistorySignals,
+  buildHistoryDetailSummary,
+} from "../services/historySummaryService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
@@ -66,6 +69,62 @@ router.post("/retell/functions/capture-phone", async (req, res) => {
     });
   } catch (err) {
     console.error("[Retell function capture-phone] error", err);
+    return res.status(500).json({ error: "failed" });
+  }
+});
+
+// Retell custom function: return detailed history summary on demand.
+router.post("/retell/functions/history-detail", async (req, res) => {
+  try {
+    if (!requireFunctionSecret(req)) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const { phone_number, interaction_id, subscriber_slug } = req.body || {};
+    if (!phone_number || typeof phone_number !== "string") {
+      return res.status(200).json({ history_detail_summary: "" });
+    }
+
+    const normalized = normalizePhone(phone_number);
+    if (!normalized.startsWith("+") || !/^\+\d{11,15}$/.test(normalized)) {
+      return res.status(200).json({ history_detail_summary: "" });
+    }
+
+    let subscriberId: string | null = null;
+
+    if (interaction_id && typeof interaction_id === "string") {
+      const interaction = await prisma.interaction.findUnique({
+        where: { id: interaction_id },
+        select: { id: true, subscriberId: true },
+      });
+      subscriberId = interaction?.subscriberId || null;
+    }
+
+    if (!subscriberId && subscriber_slug && typeof subscriber_slug === "string") {
+      const subscriber = await prisma.subscriber.findUnique({
+        where: { slug: subscriber_slug.toLowerCase().trim() },
+        select: { id: true },
+      });
+      subscriberId = subscriber?.id || null;
+    }
+
+    if (!subscriberId) {
+      return res.status(200).json({ history_detail_summary: "" });
+    }
+
+    const historyDetail =
+      (await buildHistoryDetailSummary({
+        subscriberId,
+        phoneNumber: normalized,
+        channels: ["VOICE", "SMS", "CHAT"],
+      })) || "";
+
+    return res.status(200).json({
+      history_detail_summary: historyDetail,
+      contact_phone_e164: normalized,
+    });
+  } catch (err) {
+    console.error("[Retell function history-detail] error", err);
     return res.status(500).json({ error: "failed" });
   }
 });

@@ -14,6 +14,10 @@ type HistorySummaryOptions = {
 const DEFAULT_MAX_INTERACTIONS = 3;
 const DEFAULT_LOOKBACK_MONTHS = 6;
 const DEFAULT_MAX_MESSAGES_PER_INTERACTION = 10;
+const DEFAULT_DETAIL_LOOKBACK_MONTHS = 4;
+const DEFAULT_DETAIL_MAX_INTERACTIONS = 5;
+const DEFAULT_DETAIL_MAX_MESSAGES = 50;
+const DEFAULT_DETAIL_MAX_CHARS = 8000;
 const OPENAI_MODEL = "gpt-4.1-mini";
 
 const REDACTION_RULES = `Redact any highly sensitive personal or security-related information from the text below.
@@ -110,6 +114,50 @@ async function callOpenAiSummary(input: string): Promise<string | null> {
 
   if (!resp.ok) {
     console.error("[historySummary] OpenAI error", {
+      status: resp.status,
+      data,
+    });
+    return null;
+  }
+
+  const text = data?.choices?.[0]?.message?.content;
+  return text ? text.trim() : null;
+}
+
+async function callOpenAiDetailSummary(input: string): Promise<string | null> {
+  const apiKey = OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn("[historyDetail] Missing OPENAI_API_KEY");
+    return null;
+  }
+
+  const systemPrompt =
+    "You summarize prior customer interactions for an AI receptionist. " +
+    "Provide a detailed but concise summary that captures: intent, key facts, preferences, and outcomes. " +
+    "If multiple interactions are provided, include multiple bullet points per interaction with concrete details. " +
+    "Do not add new facts. Avoid meta-commentary about redaction or privacy. " +
+    "After summarizing, apply the redaction rules exactly to the content.";
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `${REDACTION_RULES}\n\nSource text:\n${input}` },
+      ],
+      temperature: 0.2,
+    }),
+  });
+
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    console.error("[historyDetail] OpenAI error", {
       status: resp.status,
       data,
     });
@@ -262,4 +310,97 @@ export async function buildHistorySignals({
   });
 
   return `Recent interactions (${lookbackMonths}mo):\n- ${lines.join("\n- ")}`;
+}
+
+type HistoryDetailOptions = {
+  subscriberId: string;
+  phoneNumber: string;
+  channel?: "VOICE" | "SMS" | "CHAT";
+  channels?: Array<"VOICE" | "SMS" | "CHAT">;
+  maxInteractions?: number;
+  lookbackMonths?: number;
+  maxMessages?: number;
+  maxChars?: number;
+};
+
+/**
+ * Build a more detailed history summary on demand.
+ */
+export async function buildHistoryDetailSummary({
+  subscriberId,
+  phoneNumber,
+  channel,
+  channels,
+  maxInteractions = DEFAULT_DETAIL_MAX_INTERACTIONS,
+  lookbackMonths = DEFAULT_DETAIL_LOOKBACK_MONTHS,
+  maxMessages = DEFAULT_DETAIL_MAX_MESSAGES,
+  maxChars = DEFAULT_DETAIL_MAX_CHARS,
+}: HistoryDetailOptions): Promise<string | null> {
+  const since = buildLookbackDate(lookbackMonths);
+  const channelList = channels || (channel ? [channel] : undefined);
+
+  const interactions = await prisma.interaction.findMany({
+    where: {
+      subscriberId,
+      ...(channelList ? { channel: { in: channelList } } : {}),
+      startedAt: { gte: since },
+      OR: [
+        { fromNumberE164: phoneNumber },
+        { toNumberE164: phoneNumber },
+        { contactPhoneE164: phoneNumber },
+      ],
+    },
+    orderBy: { startedAt: "desc" },
+    take: maxInteractions,
+    select: {
+      id: true,
+      startedAt: true,
+      direction: true,
+      channel: true,
+    },
+  });
+
+  if (interactions.length === 0) return null;
+
+  const interactionIds = interactions.map((i) => i.id);
+  const messages = await prisma.interactionMessage.findMany({
+    where: { interactionId: { in: interactionIds } },
+    orderBy: { createdAt: "asc" },
+    select: { interactionId: true, role: true, content: true, createdAt: true },
+  });
+
+  const messagesByInteraction = new Map<string, typeof messages>();
+  for (const msg of messages) {
+    const arr = messagesByInteraction.get(msg.interactionId) || [];
+    arr.push(msg);
+    messagesByInteraction.set(msg.interactionId, arr);
+  }
+
+  const sections: string[] = [];
+  let remaining = maxChars;
+
+  for (const interaction of interactions) {
+    const msgs = messagesByInteraction.get(interaction.id) || [];
+    const ageDays = daysAgo(interaction.startedAt);
+    const header = `Interaction: ${interaction.channel} • ${interaction.direction} • ${formatDate(
+      interaction.startedAt
+    )} (${ageDays} days ago)`;
+    if (header.length + 1 > remaining) break;
+    sections.push(header);
+    remaining -= header.length + 1;
+
+    const tail = msgs.slice(-maxMessages);
+    for (const msg of tail) {
+      const line = `${roleLabel(msg.role)}: ${normalizeText(msg.content)}`;
+      if (line.length + 1 > remaining) break;
+      sections.push(line);
+      remaining -= line.length + 1;
+    }
+    if (remaining <= 0) break;
+  }
+
+  const sourceText = sections.join("\n");
+  if (!sourceText.trim()) return null;
+
+  return callOpenAiDetailSummary(sourceText);
 }
