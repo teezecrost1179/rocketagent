@@ -92,6 +92,8 @@ router.post("/call", async (req, res) => {
       agentId: voiceChannel.providerAgentIdOutbound,
       dynamicVariables: {
         call_type: "outbound",
+        subscriber_slug: subscriberSlug,
+        phone_number: toNumber,
         ...(historySummary ? { history_summary: historySummary } : {}),
         ...(transferPreselect ? { transfer_preselect: transferPreselect } : {}),
       },

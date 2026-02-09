@@ -2,6 +2,7 @@ import { Router } from "express";
 import { RETELL_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN } from "../config/env";
 import { prisma } from "../lib/prisma"; // <-- adjust path if needed
 import { buildHistorySummary } from "../services/historySummaryService";
+import { updateRetellChatDynamicVariables } from "../services/retellService";
 import Twilio from "twilio";
 
 
@@ -131,6 +132,22 @@ async function getRetellReplyWithRecovery({
 }): Promise<{ chatId: string; lastAgentMsg: string | null; usedRecovery: boolean }> {
   // 0) Start with whatever we already have stored on the Interaction
   let chatId = existingChatId;
+  const subscriberSlug =
+    (await prisma.subscriber.findUnique({
+      where: { id: subscriberId },
+      select: { slug: true },
+    }))?.slug || null;
+
+  const baseDynamicVars: Record<string, string> = {
+    interaction_id: interactionId,
+    phone_number: from,
+  };
+  if (subscriberSlug) {
+    baseDynamicVars.subscriber_slug = subscriberSlug;
+  }
+  if (historySummary) {
+    baseDynamicVars.history_summary = historySummary;
+  }
 
 
   // 1) If we don't have a valid Retell chat_id, create a new one
@@ -144,9 +161,7 @@ async function getRetellReplyWithRecovery({
       body: JSON.stringify({
         agent_id: retellChatAgentId,
         metadata: { subscriberId, from, to, interactionId },
-        ...(historySummary
-          ? { retell_llm_dynamic_variables: { history_summary: historySummary } }
-          : {}),
+        retell_llm_dynamic_variables: baseDynamicVars,
       }),
     });
 
@@ -162,6 +177,13 @@ async function getRetellReplyWithRecovery({
     await prisma.interaction.update({
       where: { id: interactionId },
       data: { providerConversationId: chatId },
+    });
+  }
+  else {
+    // Ensure dynamic variables are available for function calls on existing chats.
+    await updateRetellChatDynamicVariables({
+      chatId,
+      dynamicVariables: baseDynamicVars,
     });
   }
 
@@ -205,6 +227,7 @@ async function getRetellReplyWithRecovery({
     body: JSON.stringify({
       agent_id: retellChatAgentId,
       metadata: { subscriberId, from, to, interactionId, reason: "recovered_from_chat_ended" },
+      retell_llm_dynamic_variables: baseDynamicVars,
     }),
   });
 

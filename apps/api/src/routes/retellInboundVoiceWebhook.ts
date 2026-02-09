@@ -26,6 +26,7 @@ router.post("/retell/voice-inbound", async (req, res) => {
       },
       select: {
         subscriberId: true,
+        subscriber: { select: { slug: true } },
       },
     });
 
@@ -42,7 +43,12 @@ router.post("/retell/voice-inbound", async (req, res) => {
     });
 
     const responsePayload = {
-      dynamic_variables: historySummary ? { history_summary: historySummary } : {},
+      dynamic_variables: {
+        ...(historySummary ? { history_summary: historySummary } : {}),
+        subscriber_slug: channel.subscriber.slug,
+        phone_number: fromNumber,
+        called_phone_e164: toNumber,
+      },
     };
 
     console.log("[Retell inbound voice webhook] response", {
