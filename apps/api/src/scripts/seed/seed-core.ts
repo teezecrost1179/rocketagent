@@ -18,6 +18,7 @@ export type SeedSubscriberInput = {
   websiteUrl?: string;
   publicPhoneE164?: string;
   allowedDomains?: string[];
+  primaryEmail?: string;
 };
 
 // Core helper: idempotent + safe to re-run
@@ -38,6 +39,7 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     websiteUrl,
     publicPhoneE164,
     allowedDomains,
+    primaryEmail,
   } = input;
 
   // IMPORTANT: leaving undefined fields is OK; Prisma will ignore them.
@@ -57,6 +59,7 @@ export async function upsertSubscriber(input: SeedSubscriberInput) {
     websiteUrl,
     publicPhoneE164,
     allowedDomains,
+    primaryEmail,
 
   };
 
@@ -98,6 +101,24 @@ async function main() {
     widgetEnabled: true,
     websiteUrl: "https://rocketreception.ca",
     publicPhoneE164: "+14316005505",
+    allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
+  });
+
+  // Rocket Reception (site chat widget only)
+  await upsertSubscriber({
+    slug: "rocketreception",
+    legalName: "Rocket Reception",
+    displayName: "Rocket Reception",
+    status: "active",
+    widgetTitle: "Rocket Reception",
+    widgetSubtitle: "Friendly AI Support for SMB",
+    widgetGreeting: "Hi, thanks for checking out Rocket Reception. What can I help you with today?",
+    widgetAvatarUrl: "https://rocketreception.ca/assets/logo.png",
+    widgetPrimaryColorHex: "#0da7d1",
+    widgetSecondaryColorHex: "#d10d52",
+    widgetEnabled: true,
+    websiteUrl: "https://rocketreception.ca",
+    primaryEmail: "support@rocketreception.ca",
     allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
   });
 

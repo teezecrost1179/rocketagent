@@ -17,6 +17,9 @@ async function main() {
       "demo-gatekeeper": {
         providerInboxId: "agent_e993412c0a735a59ab24944ca0",
       },
+      rocketreception: {
+        providerInboxId: "agent_9c0956d02507f6484c188f34fd",
+      },
       rocketsciencedesigns: {
         providerInboxId: "agent_3fed5b39ade35fdc0ad1994f5b",
       },
