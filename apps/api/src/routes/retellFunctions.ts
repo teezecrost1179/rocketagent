@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { RETELL_FUNCTION_SECRET } from "../config/env";
+import { POSTMARK_API_KEY, RETELL_FUNCTION_SECRET } from "../config/env";
 import { prisma } from "../lib/prisma";
 import {
   buildHistorySignals,
@@ -15,6 +15,10 @@ function requireFunctionSecret(req: { headers: Record<string, string | string[] 
   const provided = req.headers["x-retell-secret"];
   if (Array.isArray(provided)) return provided.includes(expected);
   return provided === expected;
+}
+
+function sanitizeHeaderName(value: string) {
+  return value.replace(/[\r\n<>"]/g, "").trim();
 }
 
 // Retell custom function: capture a phone number and return history summary.
@@ -126,6 +130,94 @@ router.post("/retell/functions/history-detail", async (req, res) => {
   } catch (err) {
     console.error("[Retell function history-detail] error", err);
     return res.status(500).json({ error: "failed" });
+  }
+});
+
+// Retell custom function: send an email to support with user request summary.
+router.post("/retell/functions/send-email", async (req, res) => {
+  try {
+    if (!requireFunctionSecret(req)) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    if (!POSTMARK_API_KEY) {
+      return res.status(500).json({ error: "missing_postmark_key" });
+    }
+
+    const {
+      name,
+      email,
+      phone_number,
+      summary,
+      subject,
+    } = req.body || {};
+
+    const hasEmail = typeof email === "string" && email.trim().length > 0;
+    const hasPhone =
+      typeof phone_number === "string" && phone_number.trim().length > 0;
+
+    if (!hasEmail && !hasPhone) {
+      return res
+        .status(200)
+        .json({ email_sent: false, email_error: "missing_contact" });
+    }
+
+    const safeName =
+      typeof name === "string" && name.trim().length > 0
+        ? sanitizeHeaderName(name)
+        : "Rocket Reception";
+
+    const from = `${safeName} <support@rocketreception.ca>`;
+    const replyTo = hasEmail ? email.trim() : undefined;
+    const safeSubject =
+      typeof subject === "string" && subject.trim().length > 0
+        ? subject.trim()
+        : "Rocket Reception inquiry";
+
+    const bodyLines = [
+      `Name: ${typeof name === "string" ? name.trim() : ""}`,
+      `Email: ${hasEmail ? email.trim() : ""}`,
+      `Phone: ${hasPhone ? phone_number.trim() : ""}`,
+      "",
+      "Request summary:",
+      typeof summary === "string" ? summary.trim() : "",
+    ];
+
+    const postmarkPayload: Record<string, unknown> = {
+      From: from,
+      To: "support@rocketreception.ca",
+      Subject: safeSubject,
+      TextBody: bodyLines.join("\n"),
+    };
+
+    if (replyTo) {
+      postmarkPayload.ReplyTo = replyTo;
+    }
+
+    const resp = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Postmark-Server-Token": POSTMARK_API_KEY,
+      },
+      body: JSON.stringify(postmarkPayload),
+    });
+
+    if (!resp.ok) {
+      const errorBody = await resp.text();
+      console.error("[Retell function send-email] postmark error", {
+        status: resp.status,
+        body: errorBody,
+      });
+      return res
+        .status(500)
+        .json({ email_sent: false, email_error: "send_failed" });
+    }
+
+    return res.status(200).json({ email_sent: true });
+  } catch (err) {
+    console.error("[Retell function send-email] error", err);
+    return res.status(500).json({ email_sent: false, email_error: "failed" });
   }
 });
 
