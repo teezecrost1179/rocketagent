@@ -248,6 +248,7 @@
         max-width: calc(100vw - 40px);
         height: 470px;
         max-height: calc(100vh - 80px);
+        max-height: calc(100dvh - 80px);
         border-radius: 16px;
         overflow: hidden;
         background: radial-gradient(circle at top left, #111827 0, #020617 55%);
@@ -328,6 +329,7 @@
       .rcw-messages {
         flex: 1;
         padding: 10px 10px 4px;
+        padding-bottom: calc(4px + env(safe-area-inset-bottom));
         overflow-y: auto;
         background: #b0b0b0;
       }
@@ -338,6 +340,7 @@
       }
       .rcw-footer {
         padding: 8px;
+        padding-bottom: calc(8px + env(safe-area-inset-bottom));
         border-top: none;
         background: #000;
         display: flex;
@@ -437,6 +440,7 @@
         .rcw-panel {
           width: calc(100vw - 24px);
           height: calc(100vh - 40px);
+          height: calc(100dvh - 40px);
         }
       }
       @media (min-width: 1280px) {
@@ -619,6 +623,21 @@
     document.body.appendChild(root);
 
     applyPosition(root, panel, options.position, options.offsetX, options.offsetY);
+
+    // iOS Safari keyboard: nudge the panel above the visual viewport overlap.
+    const visualViewport = (window as any).visualViewport as VisualViewport | undefined;
+    if (visualViewport) {
+      const updatePanelOffset = () => {
+        const bottomGap = Math.max(
+          0,
+          window.innerHeight - (visualViewport.height + visualViewport.offsetTop)
+        );
+        panel.style.transform = bottomGap ? `translateY(-${bottomGap}px)` : "";
+      };
+      visualViewport.addEventListener("resize", updatePanelOffset);
+      visualViewport.addEventListener("scroll", updatePanelOffset);
+      updatePanelOffset();
+    }
 
     // Branding uses subscriber; routing can be overridden separately.
     let chatId: string | null = loadChatId(options.subscriber);
