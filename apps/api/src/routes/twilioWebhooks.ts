@@ -531,6 +531,73 @@ router.post(
                 <Response></Response>`);
             }
 
+            // /reset: end current chat + close interaction and start a fresh one
+            if (normalizedBody === "/reset") {
+                const chatIdToEnd = interaction.providerConversationId;
+
+                if (chatIdToEnd) {
+                    const endResp = await fetch(`https://api.retellai.com/end-chat/${chatIdToEnd}`, {
+                        method: "PATCH",
+                        headers: {
+                        Authorization: `Bearer ${retellApiKey}`,
+                        "Content-Type": "application/json",
+                        },
+                    });
+
+                    if (!endResp.ok) {
+                        console.error("[SMS A1] Retell end-chat failed", endResp.status, await endResp.text());
+                    } else {
+                        console.log("[SMS A1] Retell chat ended via '/reset'", { chatId: chatIdToEnd });
+                    }
+                }
+
+                await prisma.interaction.update({
+                    where: { id: interaction.id },
+                    data: { status: "COMPLETED", endedAt: new Date() },
+                });
+
+                historySummary = await buildHistorySummary({
+                    subscriberId: smsChannel.subscriberId,
+                    phoneNumber: From,
+                    channel: "SMS",
+                    maxInteractions: 3,
+                    lookbackMonths: 6,
+                });
+
+                const newInteraction = await prisma.interaction.create({
+                    data: {
+                    subscriberId: smsChannel.subscriberId,
+                    channel: "SMS",
+                    direction: "INBOUND",
+                    status: "STARTED",
+                    provider: "TWILIO",
+                    fromNumberE164: From,
+                    toNumberE164: To,
+                    providerConversationId: null,
+                    summary: historySummary || null,
+                    },
+                    select: {
+                    id: true,
+                    subscriberId: true,
+                    providerConversationId: true,
+                    },
+                });
+
+                interaction = newInteraction;
+
+                const resetReply = "Reset complete. You can start a new conversation.";
+                await sendSmsAndPersist({
+                    toUserNumber: From,
+                    fromTwilioNumber: To,
+                    body: resetReply,
+                    interactionId: interaction.id,
+                    rid,
+                });
+
+                return res.type("text/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+                <Response></Response>`);
+            }
+
 
             // Otherwise: always get Retell reply (helper will create chat if needed)
             const { chatId: finalChatId, lastAgentMsg, usedRecovery } =

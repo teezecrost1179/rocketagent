@@ -402,5 +402,19 @@ export async function buildHistoryDetailSummary({
   const sourceText = sections.join("\n");
   if (!sourceText.trim()) return null;
 
+  // Debug: log high-level detail history stats (redacted snippet only).
+  try {
+    const snippet = sourceText
+      .slice(0, 220)
+      .replace(/\+?\d[\d\s().-]{8,}\d/g, "[REDACTED_PHONE]")
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]");
+    console.log("[historyDetail] source stats", {
+      interactions: interactions.length,
+      messages: messages.length,
+      chars: sourceText.length,
+      snippet,
+    });
+  } catch {}
+
   return callOpenAiDetailSummary(sourceText);
 }

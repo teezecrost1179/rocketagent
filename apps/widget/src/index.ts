@@ -200,6 +200,13 @@
         --rcw-primary-color: #081d49;
         --rcw-secondary-color: #c6c6c6;
       }
+      .rcw-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.65);
+        display: none;
+        z-index: 0;
+      }
       .rcw-bubble {
         width: 71px;
         height: 71px;
@@ -260,6 +267,11 @@
       }
       .rcw-root.rcw-open .rcw-panel {
         display: flex;
+      }
+      @media (max-width: 768px) {
+        .rcw-root.rcw-open .rcw-backdrop {
+          display: block;
+        }
       }
       .rcw-header {
         padding: 10px 12px;
@@ -542,6 +554,9 @@
     const panel = document.createElement("div");
     panel.className = "rcw-panel";
 
+    const backdrop = document.createElement("div");
+    backdrop.className = "rcw-backdrop";
+
     // Header
     const header = document.createElement("div");
     header.className = "rcw-header";
@@ -618,6 +633,7 @@
     panel.appendChild(statusEl);
     panel.appendChild(footer);
 
+    root.appendChild(backdrop);
     root.appendChild(panel);
     root.appendChild(bubble);
     document.body.appendChild(root);
@@ -627,16 +643,26 @@
     // iOS Safari keyboard: nudge the panel above the visual viewport overlap.
     const visualViewport = (window as any).visualViewport as VisualViewport | undefined;
     if (visualViewport) {
-      const updatePanelOffset = () => {
+      const updatePanelLayout = () => {
+        const headerHeight = header.offsetHeight || 0;
+        const footerHeight = footer.offsetHeight || 0;
+        const minScrollArea = 150;
+        const minPanelHeight = headerHeight + footerHeight + minScrollArea;
+        const maxHeight = Math.max(minPanelHeight, visualViewport.height);
+        panel.style.maxHeight = `${maxHeight}px`;
+
         const bottomGap = Math.max(
           0,
           window.innerHeight - (visualViewport.height + visualViewport.offsetTop)
         );
         panel.style.transform = bottomGap ? `translateY(-${bottomGap}px)` : "";
+
+        // Keep newest messages in view when the viewport changes.
+        messagesEl.scrollTop = messagesEl.scrollHeight;
       };
-      visualViewport.addEventListener("resize", updatePanelOffset);
-      visualViewport.addEventListener("scroll", updatePanelOffset);
-      updatePanelOffset();
+      visualViewport.addEventListener("resize", updatePanelLayout);
+      visualViewport.addEventListener("scroll", updatePanelLayout);
+      updatePanelLayout();
     }
 
     // Branding uses subscriber; routing can be overridden separately.
@@ -853,6 +879,10 @@
     });
 
     closeBtn.addEventListener("click", () => {
+      root.classList.remove("rcw-open");
+    });
+
+    backdrop.addEventListener("click", () => {
       root.classList.remove("rcw-open");
     });
 
