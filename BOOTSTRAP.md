@@ -30,6 +30,8 @@ src/services/retellService.ts = helper(s) for Retell outbound + chat (DB-configu
 
 src/services/historySummaryService.ts = builds redacted history summaries (OpenAI) for voice/SMS/chat
 
+src/routes/retellFunctions.ts = Retell custom function webhooks (capture-phone, history-detail, send-email)
+
 scripts/seed/ = seed scripts (idempotent upserts)
 
 Prisma
@@ -127,6 +129,8 @@ RETELL_FUNCTION_SECRET=... (used for custom function webhook verification)
 
 OPENAI_API_KEY=... (history summaries)
 
+POSTMARK_API_KEY=... (send-email custom function)
+
 Twilio (needed for sending SMS + webhook validation if you add it later)
 
 TWILIO_ACCOUNT_SID=...
@@ -173,6 +177,8 @@ Sends the Retell reply via Twilio.
 
 Persists outbound message as InteractionMessage role=AGENT with Twilio SID.
 
+Note: SMS transport is Twilio via this API. Retell does not directly send SMS in this flow.
+
 Rate limiting:
 
 Outbound-per-hour limiting is implemented and working now.
@@ -184,6 +190,12 @@ counting outbound InteractionMessage (role=AGENT) in last hour
 Subscriber websiteUrl and publicPhoneE164 for “continue on website / call” directions
 
 There are helper functions in this file (ex: policy application, sending + persisting) to keep logic consistent.
+
+Session controls:
+
+SMS `endchat`: ends Retell chat session but keeps the same Interaction thread.
+
+SMS `/reset`: ends Retell chat, marks current Interaction completed, creates a new Interaction thread.
 
 IMPORTANT: UsageRollup
 
@@ -370,6 +382,18 @@ Retell custom function (capture_phone) (DONE)
 - Endpoint: POST /retell/functions/capture-phone
 
 - Stores contactPhoneE164 and returns history_summary for chat.
+
+Retell custom function (history_detail) (DONE)
+
+- Endpoint: POST /retell/functions/history-detail
+
+- Returns on-demand detailed history summary + contact_phone_e164.
+
+Retell custom function (send_email) (DONE)
+
+- Endpoint: POST /retell/functions/send-email
+
+- Sends support email via Postmark, returns email_sent/email_error for agent logic.
 
 Read apps/api/src/routes/twilioWebhooks.ts and copy the “pattern” used for SMS:
 

@@ -215,6 +215,12 @@ Twilio requires a TwiML response, even if empty
 
 Leaving demo webhook URLs active will swallow messages and auto-reply
 
+SMS transport ownership
+
+In this project, Twilio SMS sending is done by your API (Twilio SDK), not by Retell directly.
+
+Retell is used as the AI response engine for SMS content.
+
 Retell SMS limitation
 
 Retell native two-way SMS only supports US numbers
@@ -226,6 +232,28 @@ Twilio as transport
 Your API as router/logger
 
 Retell chat agents as the AI brain
+
+Retell custom function gotchas
+
+For custom functions that expect raw args in your Express route, set Payload: args only = ON.
+
+If args only is OFF, payload shape changes and your route may see missing fields.
+
+If you see literal templates like "{{interaction_id}}" in tool arguments, the dynamic variable was not resolved in Retell.
+
+For secured function endpoints, include x-retell-secret header and match RETELL_FUNCTION_SECRET.
+
+history-detail debugging
+
+If history_detail_summary returns empty, verify:
+
+- function URL and secret header are correct
+
+- Payload: args only is ON
+
+- phone_number and subscriber_slug (or interaction_id) are present
+
+- OPENAI_API_KEY exists in Render env
 
 Mental model reminders
 
