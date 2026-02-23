@@ -81,7 +81,7 @@ async function main() {
     status: "active",
     widgetTitle: "Rocket Science Designs",
     widgetSubtitle: "Web, Shopify, and branding help",
-    widgetGreeting: "Hi! How can we help today?",
+    widgetGreeting: "Hi, I'm Jenny-the virtual receptionist for Rocket Science. How can I help you today?",
     widgetAvatarUrl: "https://rocketsciencedesigns.com/assets/logo-white-bg.png",
     widgetPrimaryColorHex: "#d91818",
     widgetSecondaryColorHex: "#128cb5",

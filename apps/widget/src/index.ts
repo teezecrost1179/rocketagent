@@ -395,6 +395,22 @@
         align-items: center;
         gap: 4px;
       }
+      .rcw-footer-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .rcw-powered {
+        font-size: 10px;
+        color: #d1d5db;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .rcw-powered a {
+        color: #fff;
+        text-decoration: underline;
+      }
       .rcw-send[disabled] {
         opacity: 0.5;
         cursor: default;
@@ -625,8 +641,19 @@
     sendBtn.type = "button";
     sendBtn.textContent = "Send";
 
+    const footerBottom = document.createElement("div");
+    footerBottom.className = "rcw-footer-bottom";
+
+    const powered = document.createElement("div");
+    powered.className = "rcw-powered";
+    powered.innerHTML =
+      'Chat powered by <a href="https://rocketreception.ca" target="_blank" rel="noopener noreferrer">Rocket Reception</a>';
+
+    footerBottom.appendChild(powered);
+    footerBottom.appendChild(sendBtn);
+
     footer.appendChild(input);
-    footer.appendChild(sendBtn);
+    footer.appendChild(footerBottom);
 
     panel.appendChild(header);
     panel.appendChild(messagesEl);
