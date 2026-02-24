@@ -150,6 +150,8 @@ router.post("/retell/functions/send-email", async (req, res) => {
       phone_number,
       summary,
       subject,
+      subscriber_slug,
+      interaction_id,
     } = req.body || {};
 
     const hasEmail = typeof email === "string" && email.trim().length > 0;
@@ -166,6 +168,34 @@ router.post("/retell/functions/send-email", async (req, res) => {
       typeof name === "string" && name.trim().length > 0
         ? sanitizeHeaderName(name)
         : "Rocket Reception";
+
+    let subscriberId: string | null = null;
+    if (subscriber_slug && typeof subscriber_slug === "string") {
+      const sub = await prisma.subscriber.findUnique({
+        where: { slug: subscriber_slug.toLowerCase().trim() },
+        select: { id: true },
+      });
+      subscriberId = sub?.id || null;
+    }
+
+    if (!subscriberId && interaction_id && typeof interaction_id === "string") {
+      const interaction = await prisma.interaction.findUnique({
+        where: { id: interaction_id },
+        select: { subscriberId: true },
+      });
+      subscriberId = interaction?.subscriberId || null;
+    }
+
+    let toAddress = "support@rocketreception.ca";
+    if (subscriberId) {
+      const subForEmail = await prisma.subscriber.findUnique({
+        where: { id: subscriberId },
+        select: { primaryEmail: true },
+      });
+      if (subForEmail?.primaryEmail && subForEmail.primaryEmail.trim()) {
+        toAddress = subForEmail.primaryEmail.trim();
+      }
+    }
 
     const from = `${safeName} <support@rocketreception.ca>`;
     const replyTo = hasEmail ? email.trim() : undefined;
@@ -185,7 +215,7 @@ router.post("/retell/functions/send-email", async (req, res) => {
 
     const postmarkPayload: Record<string, unknown> = {
       From: from,
-      To: "support@rocketreception.ca",
+      To: toAddress,
       Subject: safeSubject,
       TextBody: bodyLines.join("\n"),
     };
