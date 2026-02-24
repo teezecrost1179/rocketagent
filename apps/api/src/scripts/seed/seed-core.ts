@@ -88,6 +88,7 @@ async function main() {
     widgetEnabled: true,
     websiteUrl: "https://rocketsciencedesigns.com",
     publicPhoneE164: "+12048082733",
+    primaryEmail: "hello@rocketsciencedesigns.com",
     allowedDomains: ["rocketsciencedesigns.com", "rocketreception.ca"],
   });
 
