@@ -5,6 +5,7 @@ import {
   buildHistorySignals,
   buildHistoryDetailSummary,
 } from "../services/historySummaryService";
+import { OutboundCallError, startOutboundCall } from "../services/outboundCallService";
 import { normalizePhone } from "../utils/phone";
 
 const router = Router();
@@ -248,6 +249,69 @@ router.post("/retell/functions/send-email", async (req, res) => {
   } catch (err) {
     console.error("[Retell function send-email] error", err);
     return res.status(500).json({ email_sent: false, email_error: "failed" });
+  }
+});
+
+// Retell custom function: request an outbound call via existing call pipeline.
+router.post("/retell/functions/request-call", async (req, res) => {
+  try {
+    if (!requireFunctionSecret(req)) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+
+    const { phone_number, subscriber_slug, interaction_id, transfer_preselect } =
+      req.body || {};
+    if (!phone_number || typeof phone_number !== "string") {
+      return res
+        .status(200)
+        .json({ call_started: false, call_error: "missing_phone_number" });
+    }
+
+    let resolvedSubscriberSlug: string | null = null;
+
+    if (subscriber_slug && typeof subscriber_slug === "string") {
+      resolvedSubscriberSlug = subscriber_slug.toLowerCase().trim();
+    }
+
+    if (!resolvedSubscriberSlug && interaction_id && typeof interaction_id === "string") {
+      const interaction = await prisma.interaction.findUnique({
+        where: { id: interaction_id },
+        select: { subscriber: { select: { slug: true } } },
+      });
+      resolvedSubscriberSlug = interaction?.subscriber?.slug || null;
+    }
+
+    if (!resolvedSubscriberSlug) {
+      return res
+        .status(200)
+        .json({ call_started: false, call_error: "missing_subscriber_context" });
+    }
+
+    const { data } = await startOutboundCall({
+      phone: phone_number,
+      subscriberSlug: resolvedSubscriberSlug,
+      transferPreselect:
+        typeof transfer_preselect === "string" ? transfer_preselect : undefined,
+    });
+
+    const callId = data?.call_id || data?.callId || data?.call?.call_id || null;
+
+    return res.status(200).json({
+      call_started: true,
+      call_id: callId,
+    });
+  } catch (err) {
+    if (err instanceof OutboundCallError) {
+      return res.status(200).json({
+        call_started: false,
+        call_error: err.message,
+      });
+    }
+
+    console.error("[Retell function request-call] error", err);
+    return res
+      .status(500)
+      .json({ call_started: false, call_error: "failed_to_start_call" });
   }
 });
 
