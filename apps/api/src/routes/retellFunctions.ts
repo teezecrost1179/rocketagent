@@ -86,23 +86,38 @@ router.post("/retell/functions/history-detail", async (req, res) => {
     }
 
     const { phone_number, interaction_id, subscriber_slug } = req.body || {};
-    if (!phone_number || typeof phone_number !== "string") {
-      return res.status(200).json({ history_detail_summary: "" });
-    }
 
-    const normalized = normalizePhone(phone_number);
-    if (!normalized.startsWith("+") || !/^\+\d{11,15}$/.test(normalized)) {
-      return res.status(200).json({ history_detail_summary: "" });
+    let normalized: string | null =
+      typeof phone_number === "string" ? normalizePhone(phone_number) : null;
+    if (!normalized || !normalized.startsWith("+") || !/^\+\d{11,15}$/.test(normalized)) {
+      normalized = null;
     }
 
     let subscriberId: string | null = null;
+    let fallbackInteractionPhone: string | null = null;
 
     if (interaction_id && typeof interaction_id === "string") {
       const interaction = await prisma.interaction.findUnique({
         where: { id: interaction_id },
-        select: { id: true, subscriberId: true },
+        select: {
+          id: true,
+          subscriberId: true,
+          direction: true,
+          contactPhoneE164: true,
+          fromNumberE164: true,
+          toNumberE164: true,
+        },
       });
       subscriberId = interaction?.subscriberId || null;
+      if (interaction) {
+        // Fallback phone inference when function args omit/invalid phone_number.
+        fallbackInteractionPhone =
+          interaction.contactPhoneE164 ||
+          (interaction.direction === "OUTBOUND"
+            ? interaction.toNumberE164 || interaction.fromNumberE164
+            : interaction.fromNumberE164 || interaction.toNumberE164) ||
+          null;
+      }
     }
 
     if (!subscriberId && subscriber_slug && typeof subscriber_slug === "string") {
@@ -114,6 +129,17 @@ router.post("/retell/functions/history-detail", async (req, res) => {
     }
 
     if (!subscriberId) {
+      return res.status(200).json({ history_detail_summary: "" });
+    }
+
+    if (!normalized && fallbackInteractionPhone) {
+      const candidate = normalizePhone(fallbackInteractionPhone);
+      if (candidate.startsWith("+") && /^\+\d{11,15}$/.test(candidate)) {
+        normalized = candidate;
+      }
+    }
+
+    if (!normalized) {
       return res.status(200).json({ history_detail_summary: "" });
     }
 
