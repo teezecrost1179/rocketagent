@@ -1,4 +1,4 @@
-import { OPENAI_API_KEY } from "../config/env";
+import { ANTHROPIC_API_KEY } from "../config/env";
 import { prisma } from "../lib/prisma";
 
 type HistorySummaryOptions = {
@@ -18,7 +18,7 @@ const DEFAULT_DETAIL_LOOKBACK_MONTHS = 4;
 const DEFAULT_DETAIL_MAX_INTERACTIONS = 40;
 const DEFAULT_DETAIL_MAX_MESSAGES = 50;
 const DEFAULT_DETAIL_MAX_CHARS = 8000;
-const OPENAI_MODEL = "gpt-4.1-mini";
+const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 
 const REDACTION_RULES = `Redact any highly sensitive personal or security-related information from the text below.
 
@@ -80,32 +80,27 @@ function roleLabel(role: string) {
   }
 }
 
-async function callOpenAiSummary(input: string): Promise<string | null> {
-  const apiKey = OPENAI_API_KEY;
+async function callAnthropicSummary(input: string, systemPrompt: string, logPrefix: string): Promise<string | null> {
+  const apiKey = ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.warn("[historySummary] Missing OPENAI_API_KEY");
+    console.warn(`[${logPrefix}] Missing ANTHROPIC_API_KEY`);
     return null;
   }
 
-  const systemPrompt =
-    "You summarize prior customer interactions for an AI receptionist. " +
-    "Write a factual summary that captures: the caller's intent, key details, and any decisions/outcomes. " +
-    "If multiple interactions are provided, include 1-2 bullet points per interaction. " +
-    "Do not add new facts. Avoid meta-commentary about redaction or privacy. " +
-    "After summarizing, apply the redaction rules exactly to the content.";
-
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: OPENAI_MODEL,
+      model: ANTHROPIC_MODEL,
+      system: systemPrompt,
       messages: [
-        { role: "system", content: systemPrompt },
         { role: "user", content: `${REDACTION_RULES}\n\nSource text:\n${input}` },
       ],
+      max_tokens: 1024,
       temperature: 0.2,
     }),
   });
@@ -113,58 +108,14 @@ async function callOpenAiSummary(input: string): Promise<string | null> {
   const data = await resp.json();
 
   if (!resp.ok) {
-    console.error("[historySummary] OpenAI error", {
+    console.error(`[${logPrefix}] Anthropic error`, {
       status: resp.status,
       data,
     });
     return null;
   }
 
-  const text = data?.choices?.[0]?.message?.content;
-  return text ? text.trim() : null;
-}
-
-async function callOpenAiDetailSummary(input: string): Promise<string | null> {
-  const apiKey = OPENAI_API_KEY;
-  if (!apiKey) {
-    console.warn("[historyDetail] Missing OPENAI_API_KEY");
-    return null;
-  }
-
-  const systemPrompt =
-    "You summarize prior customer interactions for an AI receptionist. " +
-    "Provide a detailed but concise summary that captures: intent, key facts, preferences, and outcomes. " +
-    "If multiple interactions are provided, include multiple bullet points per interaction with concrete details. " +
-    "Do not add new facts. Avoid meta-commentary about redaction or privacy. " +
-    "After summarizing, apply the redaction rules exactly to the content.";
-
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `${REDACTION_RULES}\n\nSource text:\n${input}` },
-      ],
-      temperature: 0.2,
-    }),
-  });
-
-  const data = await resp.json();
-
-  if (!resp.ok) {
-    console.error("[historyDetail] OpenAI error", {
-      status: resp.status,
-      data,
-    });
-    return null;
-  }
-
-  const text = data?.choices?.[0]?.message?.content;
+  const text = data?.content?.[0]?.text;
   return text ? text.trim() : null;
 }
 
@@ -253,7 +204,13 @@ export async function buildHistorySummary({
   const sourceText = sections.join("\n");
   if (!sourceText.trim()) return null;
 
-  return callOpenAiSummary(sourceText);
+  const systemPrompt =
+    "You summarize prior customer interactions for an AI receptionist. " +
+    "Write a factual summary that captures: the caller's intent, key details, and any decisions/outcomes. " +
+    "If multiple interactions are provided, include 1-2 bullet points per interaction. " +
+    "Do not add new facts. Avoid meta-commentary about redaction or privacy. " +
+    "After summarizing, apply the redaction rules exactly to the content.";
+  return callAnthropicSummary(sourceText, systemPrompt, "historySummary");
 }
 
 type HistorySignalsOptions = {
@@ -416,5 +373,11 @@ export async function buildHistoryDetailSummary({
     });
   } catch {}
 
-  return callOpenAiDetailSummary(sourceText);
+  const systemPrompt =
+    "You summarize prior customer interactions for an AI receptionist. " +
+    "Provide a detailed but concise summary that captures: intent, key facts, preferences, and outcomes. " +
+    "If multiple interactions are provided, include multiple bullet points per interaction with concrete details. " +
+    "Do not add new facts. Avoid meta-commentary about redaction or privacy. " +
+    "After summarizing, apply the redaction rules exactly to the content.";
+  return callAnthropicSummary(sourceText, systemPrompt, "historyDetail");
 }

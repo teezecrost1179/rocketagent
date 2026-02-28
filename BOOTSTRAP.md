@@ -30,7 +30,7 @@ src/services/retellService.ts = helper(s) for Retell outbound + chat (DB-configu
 
 src/services/historySummaryService.ts = builds redacted history summaries (OpenAI) for voice/SMS/chat
 
-src/routes/retellFunctions.ts = Retell custom function webhooks (capture-phone, history-detail, send-email)
+src/routes/retellFunctions.ts = Retell custom function webhooks (capture-phone, history-detail, send-email, request-call)
 
 scripts/seed/ = seed scripts (idempotent upserts)
 
@@ -389,11 +389,29 @@ Retell custom function (history_detail) (DONE)
 
 - Returns on-demand detailed history summary + contact_phone_e164.
 
+- Fallback: if phone_number is missing/invalid, route can infer phone from interaction_id context.
+
 Retell custom function (send_email) (DONE)
 
 - Endpoint: POST /retell/functions/send-email
 
 - Sends support email via Postmark, returns email_sent/email_error for agent logic.
+
+- Routing: uses subscriber primaryEmail when subscriber_slug/interaction_id context is available; otherwise falls back to support@rocketreception.ca.
+
+Retell custom function (request_call) (DONE)
+
+- Endpoint: POST /retell/functions/request-call
+
+- Starts outbound call via same shared call pipeline as /call route.
+
+- Inputs: phone_number + subscriber_slug (or interaction_id fallback), optional transfer_preselect.
+
+- Returns call_started/call_id/call_error for agent logic.
+
+Widget mobile behavior (DONE)
+
+- Uses dynamic viewport sizing (100dvh fallback chain), visualViewport keyboard adjustment, safe-area padding, and a mobile backdrop overlay when open.
 
 Read apps/api/src/routes/twilioWebhooks.ts and copy the “pattern” used for SMS:
 
